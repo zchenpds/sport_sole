@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(sport_sole)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     std_msgs
     message_generation
     geometry_msgs
+    tf
 )
 
 ## System dependencies are found with CMake's conventions
@@ -118,8 +119,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
-# ${catkin_INCLUDE_DIRS}
+include
+${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -201,6 +202,6 @@ include_directories(
 # catkin_add_nosetests(test)
 
 
-add_executable(talker src/talker.cpp)
-target_link_libraries(talker ${catkin_LIBRARIES})
-add_dependencies(talker beginner_tutorials_generate_messages_cpp)
+add_executable(sport_sole_publisher src/sport_sole_publisher.cpp)
+target_link_libraries(sport_sole_publisher ${catkin_LIBRARIES})
+add_dependencies(sport_sole_publisher sport_sole_generate_messages_cpp)

@@ -24,9 +24,15 @@
 #include <math.h>
 #include <string.h>
 #include <inttypes.h>
+#include <wordexp.h>
 
 #include <ros/ros.h>
 #include "sport_sole/SportSole.h"
+#include <tf/LinearMath/Quaternion.h>
+#include <tf/LinearMath/Vector3.h>
+#include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
+
 
 #define US_CYCLES 1000 //[us]
 
@@ -383,144 +389,13 @@ inline bool checkSyncPacket(uint8_t *buffer,int ret)
 };
 
 
-// void threadCheckReset(bool* resetLED,bool* resetPressure,bool* setPressure)
-// {
-// 	dataMutex.lock();
-//
-// 	printf("Hello from ResetThread!\n");
-//     printf("NO GRAVITY COMPENSATION!\n");
-//
-// 	unsigned int nReset=0;
-// 	int sockfdServer;
-// 	socklen_t len;
-// 	int ret;
-// 	uint8_t recvBuffer[BUFFER];
-// 	uint8_t res;
-//
-// 	struct sockaddr_in addrServer;
-// 	struct sockaddr_in addrClient;
-//
-// 	sockfdServer=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
-// 	//printf("sockfdServer=%d\n",sockfdServer);
-//
-// 	bzero(&addrServer,sizeof(addrServer));
-// 	addrServer.sin_family = AF_INET;
-// 	addrServer.sin_addr.s_addr=htonl(INADDR_ANY);//IP_ADDRESS(127, 0, 0, 1);
-// 	addrServer.sin_port=htons(RESET_PORT);
-//
-// 	bind(sockfdServer,(struct sockaddr *)&addrServer,sizeof(addrServer));
-//
-// 	len = (socklen_t)sizeof(addrClient);
-//
-// 	dataMutex.unlock();
-// 	usleep(250);
-//
-// 	// No blocking mode
-// 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
-// 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK);
-//
-// 	while(1)
-// 	{
-// 		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_WIFI,0,(struct sockaddr *)&addrClient,&len);
-//
-// 		if (ret>1)
-// 		{
-// 			res = checkMatlabIncomingPacket(recvBuffer,ret);
-// 			//if(checkResetPacket(recvBuffer,ret))
-// 			if(res == 1)
-// 			{
-// 				nReset++;
-// 				printf("\n\n\nReset [%d]!\n\n\n",nReset);
-//
-// 				dataMutex.lock();
-//
-// 			    *resetLED=true;
-//
-// 				dataMutex.unlock();
-// 			}
-// 			else if(res == 2)
-// 			{
-// 				printf("\n\n\nReset Pressure!\n\n\n");
-// 				dataMutex.lock();
-//
-// 				*resetPressure=true;
-//
-// 				dataMutex.unlock();
-// 			}
-// 			else if(res == 3)
-// 			{
-// 				printf("\n\n\nSet Pressure Coefficients!\n");
-// 				dataMutex.lock();
-//
-// 				*setPressure=true;
-//
-// 				dataMutex.unlock();
-// 			}
-// 		}
-// 	}
-//
-// }
-
-// void threadCheckPressureReadVal(uint16_t* pressureVal)
-// {
-// 	dataMutex.lock();
-//
-// 	printf("Hello from PressureValThread!\n");
-//
-// 	int sockfdServer;
-// 	socklen_t len;
-// 	int ret;
-// 	uint8_t recvBuffer[BUFFER];
-// 	uint16_t res;
-//
-// 	struct sockaddr_in addrServer;
-// 	struct sockaddr_in addrClient;
-//
-// 	sockfdServer=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
-//
-// 	bzero(&addrServer,sizeof(addrServer));
-// 	addrServer.sin_family = AF_INET;
-// 	addrServer.sin_addr.s_addr=htonl(INADDR_ANY);//IP_ADDRESS(127, 0, 0, 1);
-// 	addrServer.sin_port=htons(PRESSUREVAL_PORT);
-//
-// 	bind(sockfdServer,(struct sockaddr *)&addrServer,sizeof(addrServer));
-//
-// 	len = (socklen_t)sizeof(addrClient);
-//
-// 	dataMutex.unlock();
-// 	usleep(250);
-//
-// 	// No blocking mode
-// 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
-// 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK);
-//
-// 	while(1)
-// 	{
-// 		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_PRESSUREVAL,0,(struct sockaddr *)&addrClient,&len);
-//
-// 		if (ret>1)
-// 		{
-// 			res = checkPressureIncomingPacket(recvBuffer,ret);
-// 			if (res < 65535){
-// 				//printf("\n\n\nPressure Read= %d\n\n\n",res);
-// 				dataMutex.lock();
-// 			    *pressureVal=res;
-// 				dataMutex.unlock();
-// 			}
-// 			else{
-// 				printf("\n\n\nWrong Pressure Packet [%d,%d].\n\n\n",ret,res);
-// 			}
-// 		}
-// 	}
-//
-// }
 
 
 void threadSYNCreceive(structSync* SyncBoard)
 {
 	dataMutex.lock();
 	
-	printf("Hello from Thread! [%s ip: %s - port: %d]\n",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]\n",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
 
 	//unsigned int nReset=0;
 	uint8_t id;
@@ -583,7 +458,7 @@ void threadUDPreceive(structPDShoe* PDShoe)
 {
 	dataMutex.lock();
 	
-	printf("Hello from Thread! [%s ip: %s - port: %d]\n",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]\n",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
 	
 	uint8_t id;
 	unsigned long int cycles=0;
@@ -643,68 +518,7 @@ void threadUDPreceive(structPDShoe* PDShoe)
 	}
 }
 
-// void createPureDataShortPacket(uint8_t* buffer_out,uint16_t norm_a1_foot,uint16_t norm_a2_foot,uint16_t norm_a1_heel,uint16_t norm_a2_heel,uint16_t heelL,uint16_t frontL,uint16_t heelR,uint16_t frontR,uint8_t metrobool,uint8_t currMode)
-// {
-//
-// 	uint8_t* pointer;
-//
-// 	buffer_out[0]=0x01;
-// 	buffer_out[1]=0x02;
-// 	buffer_out[2]=0x03;
-//
-// 	//LH
-// 	pointer=(uint8_t*)&heelL;
-// 	buffer_out[3]=pointer[1];
-// 	buffer_out[4]=pointer[0];
-//
-// 	//LMB
-// 	pointer=(uint8_t*)&frontL;
-// 	buffer_out[5]=pointer[1];
-// 	buffer_out[6]=pointer[0];
-//
-// 	//L1N foot (L)
-// 	pointer=(uint8_t*)&norm_a1_foot;
-// 	buffer_out[7]=pointer[1];
-// 	buffer_out[8]=pointer[0];
-//
-// 	//L1N heel (L)
-// 	pointer=(uint8_t*)&norm_a1_heel;
-// 	buffer_out[9]=pointer[1];
-// 	buffer_out[10]=pointer[0];
-//
-// 	//RH
-// 	pointer=(uint8_t*)&heelR;
-// 	buffer_out[11]=pointer[1];
-// 	buffer_out[12]=pointer[0];
-//
-// 	//RMB
-// 	pointer=(uint8_t*)&frontR;
-// 	buffer_out[13]=pointer[1];
-// 	buffer_out[14]=pointer[0];
-//
-// 	//L1N foot (R)
-// 	pointer=(uint8_t*)&norm_a2_foot;
-// 	buffer_out[15]=pointer[1];
-// 	buffer_out[16]=pointer[0];
-//
-// 	//L1N heel (R)
-// 	pointer=(uint8_t*)&norm_a2_heel;
-// 	buffer_out[17]=pointer[1];
-// 	buffer_out[18]=pointer[0];
-//
-//     //metronome
-//     pointer=(uint8_t*)&metrobool;
-//     buffer_out[19]=pointer[0];
-//
-//     //metronome2
-//     pointer=(uint8_t*)&currMode;
-//     buffer_out[20]=pointer[0];
-//
-// 	buffer_out[21]=0x4;
-// 	buffer_out[22]=0x5;
-// 	buffer_out[23]=0x6;
-//
-// }
+
 
 void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,uint8_t Odroid_Trigger,uint64_t currenttime,uint8_t Ext_Trigger)
 {
@@ -766,13 +580,6 @@ void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,u
 	//buffer_out[47]=trigger;
 }
 
-// void createLedPacket(uint8_t* buffer_out,uint8_t trigger)
-// {
-// 	buffer_out[0]=0x01; buffer_out[1]=0x02; buffer_out[2]=0x03;
-// 	buffer_out[3]=trigger;
-// 	buffer_out[4]=0x00;
-// 	buffer_out[5]=0x04; buffer_out[6]=0x05; buffer_out[7]=0x06;
-// }
 
 uint64_t getMicrosTimeStamp() 
 {
@@ -804,152 +611,10 @@ void createTimePacket(uint8_t* buffer_out,uint64_t currenttime,uint8_t Odroid_Tr
 	buffer_out[13]=0x04; buffer_out[14]=0x05; buffer_out[15]=0x06;
 }
 
-// void calculatesLinearAcceleration(float &lax,float &lay,float &laz, float ax,float ay,float az, float yaw,float pitch,float roll,float alpha)
-// {
-// 	float g=1.0f;
-//
-// 	ax=-ax;
-// 	ay=-ay;
-// 	az=-az;
-//
-// 	//lax=cos(yaw)*(ay*cos(pitch)*sin(alpha)+cos(alpha)*(az*cos(pitch)+ay*cos(roll)*sin(pitch))+sin(pitch)*((-1)*az*cos(roll)*sin(alpha)+ax*sin(roll)))+(-1)*(ax*cos(roll)+((-1)*ay*cos(alpha)+az*sin(alpha))*sin(roll))*sin(yaw);
-// 	//lay=cos(yaw)*((-1)*ay*cos(alpha)+az*sin(alpha))*sin(roll)+(az*cos(alpha)*cos(pitch)+ay*cos(pitch)*sin(alpha)+ax*sin(pitch)*sin(roll))*sin(yaw)+cos(roll)*(ax*cos(yaw)+(ay*cos(alpha)+(-1)*az*sin(alpha))*sin(pitch)*sin(yaw));
-// 	//laz=(-1)*g+cos(pitch)*cos(roll)*(ay*cos(alpha)+(-1)*az*sin(alpha))+(-1)*(az*cos(alpha)+ay*sin(alpha))*sin(pitch)+ax*cos(pitch)*sin(roll);
-//
-//     lax=ax;
-//     lay=ay;
-//     laz=az;
-//
-//
-// }
-
-// void writeGPIO(uint8_t trigger, FILE * GPIOzero, FILE * GPIOone)
-// {
-// 		// if(trigger>0)
-// //         {
-// // 			fputs("1\n", GPIOone);
-// // 			fflush(GPIOone);
-// //         }
-// //         else
-// //         {
-// // 			fputs("0\n", GPIOzero);
-// // 			fflush(GPIOzero);
-// //         }
-// // 		//printf("LED: %d \n",trigger);
-// }
-
-// void updateHeelFront(uint16_t &heel, uint16_t &front, const uint16_t &p1, const uint16_t &p2, const uint16_t &p3, const uint16_t &p4, const uint16_t &p5, const uint16_t &p7, const uint16_t &p8)
-// {
-// 	/*
-// 	4-ch configuration:
-// 	name -> order -> Signal Name -> Actual placement
-// 	p3 -> toe -> lball -> heel
-// 	p2 -> mball -> mball -> mball
-// 	p4 -> lball -> heel -> lball
-// 	p1 -> heel -> toe -> toe
-//
-// 	heel = p3;
-// 	front = max(max(p1,p2),p4);
-//
-// 	8-ch configuration:
-// 	p1 -> Hallux
-// 	p2 -> Toes
-// 	p3 -> Met 1
-// 	p4 -> Met 3
-// 	p5 -> Met 5
-// 	p6 -> Arch
-// 	p7 -> Heel L
-// 	p8 -> Heel R
-// 	*/
-// 	heel = max(p7,p8);
-// 	front = max(max(max(p1,p2),max(p3,p4)),p5);
-// }
-
-// void updatePressSettings(structPressSettings &pressSettings,const uint16_t heel, const uint16_t front)
-// {
-//
-// 	if(pressSettings.heel.maxUpToNow<heel){
-// 		pressSettings.heel.maxUpToNow=heel;
-// 	}
-//
-// 	if(pressSettings.heel.minUpToNow>heel){
-// 		pressSettings.heel.minUpToNow=heel;
-// 	}
-//
-// 	if(pressSettings.front.maxUpToNow<front){
-// 		pressSettings.front.maxUpToNow=front;
-// 	}
-//
-// 	if(pressSettings.front.minUpToNow>front){
-// 		pressSettings.front.minUpToNow=front;
-// 	}
-//
-//
-// }
-
-// bool onOffPressure(structSensSettings &sens, const uint16_t pSignal)
-// {
-// 	float nSignal=(float)(pSignal-sens.minInUse)/(float)(sens.maxInUse-sens.minInUse);
-// 	float thr=(1/1000.0f)*(float)(sens.perMilleThreshold);
-// 	return (nSignal > thr);
-// }
-	
-// uint8_t OnOffToCode(const uint16_t &front,const uint16_t &heel)
-// {
-// 	uint8_t out;
-//
-// 	if(front)
-// 	{
-// 		if(heel)
-// 		{
-// 			out=1;
-// 		}
-// 		else
-// 		{
-// 			out=2;
-// 		}
-// 	}
-// 	else
-// 	{
-// 		if(heel)
-// 		{
-// 			out=0;
-// 		}
-// 		else
-// 		{
-// 			out=3;
-// 		}
-// 	}
-// 	return out;
-// }
-		
-// void updateState(uint8_t &currState, uint16_t &heelR,uint16_t &frontR,uint16_t &heelL,uint16_t &frontL,bool &heelOnR,bool &frontOnR,bool &heelOnL,bool &frontOnL,structPressSettings &pressSettingsL,structPressSettings &pressSettingsR, const uint16_t &p1L, const uint16_t &p2L, const uint16_t &p3L, const uint16_t &p4L, const uint16_t &p5L, const uint16_t &p7L,const uint16_t &p8L, const uint16_t &p1R,const uint16_t &p2R,const uint16_t &p3R,const uint16_t &p4R,const uint16_t &p5R,const uint16_t &p7R,const uint16_t &p8R)
-// {
-// 	//[rh rf lh lf]
-// 	//uint16_t heelL,frontL,heelR,frontR;
-// 	//bool heelOnL,frontOnL,heelOnR,frontOnR;
-//
-// 	//get heel and front
-// 	updateHeelFront(heelL,frontL,p1L,p2L,p3L,p4L,p5L,p7L,p8L);
-// 	updateHeelFront(heelR,frontR,p1R,p2R,p3R,p4R,p5R,p7R,p8R);
-//
-// 	//update Settings
-// 	updatePressSettings(pressSettingsL,heelL,frontL);
-// 	updatePressSettings(pressSettingsR,heelR,frontR);
-//
-// 	//thresholding
-// 	heelOnL=onOffPressure(pressSettingsL.heel,heelL);
-// 	frontOnL=onOffPressure(pressSettingsL.front,frontL);
-// 	heelOnR=onOffPressure(pressSettingsR.heel,heelR);
-// 	frontOnR=onOffPressure(pressSettingsR.front,frontR);
-//
-// 	// compute the current state
-// 	currState = 10*OnOffToCode(frontOnL,heelOnL)+OnOffToCode(frontOnR,heelOnR);
-// }
 
 int main(int argc, char* argv[])
 {	
-	printf("\nHello from PD Shoe (SONAR, RESET, EXT SYNC, HIP-PACK LED and 8ch)\n\n");
+	ROS_INFO("\nHello from PD Shoe (SONAR, RESET, EXT SYNC, HIP-PACK LED and 8ch)\n\n");
 	//printf("WARNING: US_CYCLES 1000\n");
 		
 	// bool resetLED=0x00;
@@ -982,117 +647,28 @@ int main(int argc, char* argv[])
 	currMode=1..12; -> Force PD to change feedback mode off
 	*/
 
-	// TODO: 
-	ros::init(argc,argv, "SportSole");
-	ros::NodeHandle nh(std::string("~"));
-	
-	// TODO: This Modify the way the argument is parsed. Use the ROS parameter server instead to obtain the argument.
-	if (argc>2)
-	{
-		printf("Error on input argument!\n");
-		return -1;
-	}
-	else if (argc==1)
-	{
-		// No session name, simple functioning
-		sprintf(strSession,"%s","");
-	}
-	else if (argc==2)
-	{
-		// Simple functioning
-		sprintf(strSession,"%s",argv[1]);
-        printf("Session Name: %s\n",strSession);
-	}
-		//     else if (argc==3)
-		//     {
-		// // with constant Metronome
-		//         sprintf(strSession,"%s",argv[1]);
-		//         Tstr = atoi (argv[2]);
-		//         printf("Session Name: %s\n",strSession);
-		//         printf("Metronome: %d [ms]\n",Tstr);
-		//     }
-		//     else if (argc==4)
-		//     {
-		// // with pseudorandom cues
-		//         sprintf(strSession,"%s",argv[1]);
-		// Tstep_min=atoi (argv[2]);// - atoi (argv[3]);
-		// Tstep_max=atoi (argv[3]);// + atoi (argv[3]);
-		//         printf("Session Name: %s\n",strSession);
-		//         printf("Min Step Period: %d [ms]\n",Tstep_min);
-		// printf("Max Step Period: %d [ms]\n",Tstep_max);
-		//     }
-		//     else if (argc==5)
-		//     {
-		// // with pseudorandom cues and fixed time periods
-		// // use zeros for Tstep_min and Tstep_max if random cues not needed
-		//         sprintf(strSession,"%s",argv[1]);
-		// Tstep_min=atoi (argv[2]);// - atoi (argv[3]);
-		// Tstep_max=atoi (argv[3]);// + atoi (argv[3]);
-		// sprintf(strTemporalFile,"/media/rootfs/sd/log/%s",argv[4]);
-		//
-		// int n,m=1;
-		// int i=0;
-		//
-		// ifstream read(strTemporalFile);
-		// while(read>>n>>m){
-		// mode[i]=n;
-		// modePeriod[i]=m;
-		// i++;
-		// }
-		// numMode=i;//number of lines
-		// ifstream close(strTemporalFile);
-		//
-		//         printf("Session Name: %s\n",strSession);
-		// if(Tstep_max > 0){
-		//         printf("Min Step Period: %d [ms]\n",Tstep_min);
-		// printf("Max Step Period: %d [ms]\n",Tstep_max);
-		// }
-		//
-		// printf("\nParameter File: %s\n",strTemporalFile);
-		// for(int i=0;i<numMode;i++)
-		// {
-		// 	printf("Period [%d]: mode %d, duration %d [s]\n",i,mode[i],modePeriod[i]);
-		// }
-		// //return -1;
-		//     }
+	// TODO: Complete CMakeLists.txt
+	// create two publishers
+	ros::init(argc, argv, "sport_sole_publisher");
+	ros::NodeHandle n(std::string("~"));
 
 	
-	// Load threshold levels
-	// sprintf(strTemporalFile,"/media/rootfs/sd/log/thresholds.txt");
-	// uint16_t nn=1;
-	// int i=0;
-	// uint16_t perMilleThr[]={0,0,0,0};
-	// ifstream read(strTemporalFile);
-	// while(read>>nn){
-	// perMilleThr[i]=nn;
-	// i++;
-	// }
-	// ifstream close(strTemporalFile);
-	// printf("\nPressure Threshold Settings Loaded from: %s\n",strTemporalFile);
-	// printf("Left Front: %d [per mille]\n",perMilleThr[0]);
-	// printf("Left Heel: %d [per mille]\n",perMilleThr[1]);
-	// printf("Right Front: %d [per mille]\n",perMilleThr[2]);
-	// printf("Right Heel: %d [per mille]\n\n",perMilleThr[3]);
-	
-	//normalized pressure
-	// bool resetPressure=0x00;
-	// bool setPressure=0x00;
-	// bool condResetPressure;
-	// bool condSetPressure;
-	// structPressSettings pressSettingsL;
-	// structPressSettings pressSettingsR;
-	// uint8_t currState=0;
-	// uint16_t heelR,frontR,heelL,frontL;///////////
-	// bool heelOnR,frontOnR,heelOnL,frontOnL;///////////
-	// pressSettingsL.front.perMilleThreshold = perMilleThr[0];
-	// pressSettingsL.heel.perMilleThreshold = perMilleThr[1];
-	// pressSettingsR.front.perMilleThreshold = perMilleThr[2];
-	// pressSettingsR.heel.perMilleThreshold = perMilleThr[3];
-	
+	// TODO: The value of the variable strSession is obtained from argv here. 
+	// We want to modify the way the argument is parsed. 
+	// Try and follow the tutorial on Parameter Server, and use the parameter server to obtain the argument supplied to rosrun, e.g. :
+	// rosrun sport_sole sport_sole_publisher session_name:=abc.
+	std::string stringSession;
+	if (n.getParam("session_name", stringSession)) {
+		ROS_INFO("Session_name: %s\n",stringSession.c_str());
+	}
+	else
+	{
+		ROS_ERROR("Failed to get session_name");
+		ros::shutdown();
+		exit(1);
+	}
+	sprintf(strSession,"%s",stringSession.c_str());
 
-	//uint16_t pressureVal=0;
-	//uint8_t PressBuff[]={0,0};
-	//uint8_t *pointer;
 
 	uint8_t bufferLog[PACKET_LENGTH_LOG];
 	uint8_t bufferPd[PACKET_LENGTH_PD];
@@ -1238,7 +814,8 @@ int main(int argc, char* argv[])
 	timer=time(0);
 	tstruct = *localtime(&timer);
 	strftime(strDate, sizeof(strDate), "%Y-%m-%d_%H-%M-%S", &tstruct);
-	sprintf(strFile,"/home/nvidia/log/%s_%s.dat",strDate,strSession);
+	sprintf(strFile,"%s/log/%s_%s.dat", getenv("HOME"),strDate,strSession);
+	ROS_INFO("Data will be logged in %s\n", strFile);
 	FILE * pFile;
 	pFile = fopen (strFile, "wb");
 	
@@ -1276,7 +853,7 @@ int main(int argc, char* argv[])
 		// srand (time(NULL));
 		// 	  }
 	
-	printf("Waiting...\n");
+	ROS_INFO("Waiting...\n");
 	//RAND_MAX is (2^31-1)=2147483647
 	
 	bool cond=false;
@@ -1289,7 +866,7 @@ int main(int argc, char* argv[])
 		usleep(500);
 	}
 	
-	printf("Start!\n");
+	ROS_INFO("Start!\n");
 	timestamp_start=getMicrosTimeStamp();
 		
 	while(1)
@@ -1314,137 +891,37 @@ int main(int argc, char* argv[])
 		
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
-		
 			
-		// Pressure Normalization
-		//dataMutex.lock();
-		//condResetPressure=resetPressure;
-		//condSetPressure=setPressure;
-		//dataMutex.unlock();
-		
-		// if(condResetPressure){
-// 		dataMutex.lock();
-// 		resetPressure=0x00;
-// 		dataMutex.unlock();
-// 		condResetPressure = false;
-// 		// reset upToNow max and min
-// 		pressSettingsL.front.maxUpToNow=0;
-// 		pressSettingsL.front.minUpToNow=1023;
-// 		pressSettingsR.front.maxUpToNow=0;
-// 		pressSettingsR.front.minUpToNow=1023;
-// 		pressSettingsL.heel.maxUpToNow=0;
-// 		pressSettingsL.heel.minUpToNow=1023;
-// 		pressSettingsR.heel.maxUpToNow=0;
-// 		pressSettingsR.heel.minUpToNow=1023;
-// 		}
-		
-		// if(condSetPressure){
-	// 	dataMutex.lock();
-	// 	setPressure=0x00;
-	// 	dataMutex.unlock();
-	// 	condSetPressure = false;
-	// 	// set max and min values for normalization
-	// 	pressSettingsL.front.maxInUse=pressSettingsL.front.maxUpToNow;
-	// 	pressSettingsL.front.minInUse=pressSettingsL.front.minUpToNow;
-	// 	pressSettingsR.front.maxInUse=pressSettingsR.front.maxUpToNow;
-	// 	pressSettingsR.front.minInUse=pressSettingsR.front.minUpToNow;
-	// 	pressSettingsL.heel.maxInUse=pressSettingsL.heel.maxUpToNow;
-	// 	pressSettingsL.heel.minInUse=pressSettingsL.heel.minUpToNow;
-	// 	pressSettingsR.heel.maxInUse=pressSettingsR.heel.maxUpToNow;
-	// 	pressSettingsR.heel.minInUse=pressSettingsR.heel.minUpToNow;
-	// 	printf("Current Normalization Coefficients for Pressure Sensors:\n");
-	// 	printf("|| LH[%04d:%04d] LF[%04d:%04d] || RH[%04d:%04d] RF[%04d:%04d]\n\n\n",pressSettingsL.heel.minInUse,pressSettingsL.heel.maxInUse,pressSettingsL.front.minInUse,pressSettingsL.front.maxInUse,pressSettingsR.heel.minInUse,pressSettingsR.heel.maxInUse,pressSettingsR.front.minInUse,pressSettingsR.front.maxInUse);
-	// 	}
-		
-	//	updateState(currState,heelR,frontR,heelL,frontL,heelOnR,frontOnR,heelOnL,frontOnL,pressSettingsL,pressSettingsR,dataPacketL.p1,dataPacketL.p2,dataPacketL.p3,dataPacketL.p4,dataPacketL.p5,dataPacketL.p7,dataPacketL.p8,dataPacketR.p1,dataPacketR.p2,dataPacketR.p3,dataPacketR.p4,dataPacketR.p5,dataPacketR.p7,dataPacketR.p8);			
 			
-			// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
-
-
-							
+		// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
+		sport_sole::SportSole msgLeft, msgRight;
+		msgLeft.header.stamp = ros::Time::now();
+		msgLeft.acceleration.linear.x = dataPacketL.ax1;
+		msgLeft.acceleration.linear.y = dataPacketL.ay1; 
+		msgLeft.acceleration.linear.z = dataPacketL.az1;
+		tf::Quaternion q1(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
+		tf::Quaternion q2(tf::Vector3(1, 0, 0), dataPacketL.pitch1);
+		tf::Quaternion q3(tf::Vector3(0, 1, 0), dataPacketL.roll1);
+		tf::Quaternion q = q1 * q2 * q3;
+		tf::quaternionTFToMsg(q, msgLeft.quaternion);
+		msgLeft.pressures[0] = dataPacketL.p1; 
+		msgLeft.pressures[1] = dataPacketL.p2; 
+		msgLeft.pressures[2] = dataPacketL.p3;
+		msgLeft.pressures[3] = dataPacketL.p4;
+		msgLeft.pressures[4] = dataPacketL.p5;
+		msgLeft.pressures[5] = dataPacketL.p6;
+		msgLeft.pressures[6] = dataPacketL.p7;
+		msgLeft.pressures[7] = dataPacketL.p8;
+		
+		
+		//incorporates rviz to visualize left shoe orientation (RPY)
+		static tf::TransformBroadcaster br;
+		tf::Transform transformL;
+		transformL.setOrigin( tf::Vector3(0, 0, 0) );
+		transformL.setRotation(q);
+		br.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
+		
 		// Send data to PD
-		// if ((cycles%2)==0)
-		// {
-
-		// 	        // Update Metronome
-		// 	//         if((Tstr > 0) or (Tstep_max > 0))
-		// 	// {
-		// 	//  if(next_beat==0)
-		// 	//         {
-		// 	//             next_beat=timestamp + TIME_TO_WAIT_US; //allows #us before starting metronome
-		// 	//         }
-		// 	//         else if (timestamp >= next_beat){
-		// 	// 	metrobool= !metrobool;
-		// 	// if (Tstr > 0)
-		// 	//         {
-		// 	//             next_beat+=1000*Tstr/2;
-		// 	//             //printf("metronome= %d\n",metronome);
-		// 	//         }
-		// 	//         else
-		// 	//         {
-		// 	// 	RandRatio=(float)(rand()/(RAND_MAX+1.0));
-		// 	// 	rand_interval=(int)(Tstep_min+(Tstep_max-Tstep_min)*RandRatio);
-		// 	// 	next_beat+=(uint64_t)(1000*rand_interval); // convert to useconds and add
-		// 	// 	//printf("%d\n",rand_interval);
-		// 	// 	//printf("%lld\n",(long long)next_beat);
-		// 	//         }
-		// 	// }
-		// 	// }
-			
-			
-	 //        // Update Feedback Mode
-		// 	// 	        if(numMode != 0)
-		// 	// {
-		// 	//  if(nextModeSwitch==0)
-		// 	// 	        {
-		// 	// 	            nextModeSwitch=timestamp + TIME_TO_WAIT_US; //allows #us before starting automatic period switching
-		// 	// 	        }
-		// 	// 	        else if (timestamp >= nextModeSwitch){
-		// 	// 	if(indCurrMode < numMode)
-		// 	// 	{
-		// 	// 		nextModeSwitch+=(uint64_t)(1000000*modePeriod[indCurrMode]);
-		// 	// 		currMode=mode[indCurrMode];
-		// 	// 		printf("Now Switching to Mode=%d for the next %d [s]\n",mode[indCurrMode],modePeriod[indCurrMode]);
-		// 	// 		indCurrMode+=1;
-		// 	// 	}
-		// 	// 	else
-		// 	// 	{
-		// 	// 		// This instruction keeps the last assigned feedback mode
-		// 	// 		// indefinitely
-		// 	// 		currMode = 255;
-		// 	// 		numMode = 0;
-		// 	// 		// This turns the automatic feedback off
-		// 	// 		Tstep_max = 0;
-		// 	// 	}
-		// 	// }
-		// 	// }
-
-		// 	//inline uint16_t convert2uint16(float fValue,float scale)
-		// 	normA1_foot=convert2uint16(fabs(dataPacketL.ax1)+fabs(dataPacketL.ay1)+fabs(dataPacketL.az1),L1_NORM_ACC_SCALE);
-		// 	normA2_foot=convert2uint16(fabs(dataPacketR.ax1)+fabs(dataPacketR.ay1)+fabs(dataPacketR.az1),L1_NORM_ACC_SCALE);
-			
-		// 	//normA1_foot=(uint16_t)(MAX_UINT16_FLOAT*(fabs(dataPacketL.ax1)+fabs(dataPacketL.ay1)+fabs(dataPacketL.az1))/L1_NORM_ACC_SCALE);
-		// 	//normA2_foot=(uint16_t)(MAX_UINT16_FLOAT*(fabs(dataPacketR.ax1)+fabs(dataPacketR.ay1)+fabs(dataPacketR.az1))/L1_NORM_ACC_SCALE);
-			
-		// 	//void calculatesLinearAcceleration(float &lax,float &lay,float &laz, float ax,float ay,float az, float yaw,float pitch,float roll)
-		// 	//calculatesLinearAcceleration(laxr,layr,lazr,dataPacketL.axr,dataPacketL.ayr,dataPacketL.azr,dataPacketL.yaw1,dataPacketL.pitch1,dataPacketL.roll1,-0.5236);
-            
-		// 	normA1_heel=(uint16_t)(MAX_UINT16_FLOAT*(fabs(laxr)+fabs(layr)+fabs(lazr))/L1_NORM_ACC_SCALE);
-		// 	//printf("acc %3.2f %3.2f %3.2f\n",dataPacketL.axr,dataPacketL.ayr,dataPacketL.azr);
-		// 	//printf("lacc %3.2f %3.2f %3.2f\n",laxr,layr,lazr);
-
-		// 	//calculatesLinearAcceleration(laxr,layr,lazr,dataPacketR.axr,dataPacketR.ayr,dataPacketR.azr,dataPacketR.yaw1,dataPacketR.pitch1,dataPacketR.roll1,-0.5236);
-		// 	//normA2_heel=(uint16_t)(MAX_UINT16_FLOAT*(fabs(laxr)+fabs(layr)+fabs(lazr))/L1_NORM_ACC_SCALE);
-  //           normA2_heel=convert2uint16(fabs(laxr)+fabs(layr)+fabs(lazr),L1_NORM_ACC_SCALE);
-			
-		// 	//createPureDataShortPacket(bufferPd,normA1_foot,normA2_foot,normA1_heel,normA2_heel,heelL,frontL,heelR,frontL,(uint8_t)(metrobool),currMode);
-		// 	///createPureDataShortPacket(bufferPd,bufferLog,normA1_foot,normA2_foot,normA1_heel,normA2_heel,metronome,SyncPacket.trigger);
-			
-		// 	sendto(sockfdPd,bufferPd,sizeof(bufferPd),0,(struct sockaddr *)&addrPd,sizeof(addrPd));
-		// 	swStat.packetPdSent++;
-			
-		// }
-		
 		if ((cycles%70)==0)
 		{
 			sendto(sockfdGui,bufferLog,sizeof(bufferLog),0,(struct sockaddr *)&addrGui,sizeof(addrGui));
@@ -1466,73 +943,6 @@ int main(int argc, char* argv[])
 			sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
 			swStat.packetBroadSent++;
 		}
-		
-		
-		// if (nPacketLed>0)
-		// {
-		// 	sendto(sockfdLed,bufferLed,PACKET_LENGTH_LED,0,(struct sockaddr *)&addrLed,sizeof(addrLed));
-		// 	nPacketLed--;
-		// 	writeGPIO(ledTrigger, GPIOzero, GPIOone);
-		// }
-
-		// if ((cycles%500)==0)
-		// {
-		// 	uint64_t currenttime;
-		// 	currenttime = getMicrosTimeStamp();
-		// 	createTimePacket(bufferTime,currenttime);
-		// 	sendto(sockfdLed,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrLed,sizeof(addrLed));
-		// 	nPacketLed--;
-		// 	writeGPIO(ledTrigger, GPIOzero, GPIOone);
-		// }
-
-		// if(!resettingState)
-		// {
-		// 	dataMutex.lock();
-		// 	condResetLed=resetLED;
-		// 	dataMutex.unlock();
-		//
-		// 	if(condResetLed)
-		// 	{
-		// 		lastResetTimestamp=dataPacketL.timestamp;
-		//
-		// 		dataMutex.lock();
-		// 		resetLED=0x00;
-		// 		dataMutex.unlock();
-		//
-		// 		resettingState=true;
-		// 	}
-		// 	else
-		// 	{
-		// 		// if(precTrigger!=dataPacketL.trigger)
-		// 		// {
-		// 		// 	createLedPacket(bufferLed,dataPacketL.trigger);
-		// 		// 	sendto(sockfdLed,bufferLed,PACKET_LENGTH_LED,0,(struct sockaddr *)&addrLed,sizeof(addrLed));
-		// 		// 	swStat.packetLedSent++;
-		// 		// 	nPacketLed=N_PACKET_LED;
-		// 		// 	ledTrigger=dataPacketL.trigger;
-		// 		// 	writeGPIO(ledTrigger, GPIOzero, GPIOone);
-		// 		// }
-		// 	}
-		//
-		// 	precTrigger=dataPacketL.trigger;
-		//
-		// }
-		// else
-		// {
-		// 	precTrigger=0;
-		// 	ledTrigger=0;
-		// 	createLedPacket(bufferLed,precTrigger);
-		// 	//check timestamp
-		// 	if((dataPacketL.timestamp-lastResetTimestamp)>5000000)
-		// 	{
-		// 		resettingState=false;
-		// 	}
-		// }
-		//
-		
-		//pointer=(uint8_t*)&pressureVal;
-		//PressBuff[0]=pointer[1];
-		//PressBuff[1]=pointer[0];
 		
 		createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,Odroid_Trigger,currenttime,SyncPacket.Ext_Trigger);
 		//createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,precTrigger,(uint8_t)(metrobool),currMode,PressBuff[0],PressBuff[1]);
@@ -1574,7 +984,7 @@ int main(int argc, char* argv[])
 		     //           else
 		     //           {
 			float currenttime_float_sec=((float)(currenttime))/1000000.0f;
-				printf("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d p(B)=%d Tr=%d, t=%5.2f ExtSync=%d\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,swStat.packetBroadSent,Odroid_Trigger,currenttime_float_sec,SyncPacket.Ext_Trigger);
+				ROS_INFO("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d p(B)=%d Tr=%d, t=%5.2f ExtSync=%d\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,swStat.packetBroadSent,Odroid_Trigger,currenttime_float_sec,SyncPacket.Ext_Trigger);
 				   //printf("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d PressVal=%d\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,pressureVal);
 				   //printf("[%d %d]\n",PressBuff[0],PressBuff[1]);
 		               // }

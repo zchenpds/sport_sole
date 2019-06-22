@@ -8,6 +8,7 @@
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
   <maintainer email="kmellin@stevens.edu">kristimellin</maintainer>
+  <maintainer email="zchen39@stevens.edu">Zhuo Chen</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -60,6 +61,7 @@
   <exec_depend>message_runtime</exec_depend>
 
   <depend>geometry_msgs</depend>
+  <depend>tf</depend>
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

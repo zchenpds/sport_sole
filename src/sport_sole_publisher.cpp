@@ -32,6 +32,8 @@
 #include <tf/LinearMath/Vector3.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/Point.h>
 
 
 #define US_CYCLES 1000 //[us]
@@ -652,11 +654,21 @@ int main(int argc, char* argv[])
 	ros::init(argc, argv, "sport_sole_publisher");
 	ros::NodeHandle n(std::string("~"));
 
+
+	//publish msgs
+	ros::Publisher msgLeft_pub = n.advertise<std::string> ("dataLeft", 0) ;
+	ros::Publisher msgRight_pub = n.advertise<std::string> ("dataRight", 0) ;
+
+
+	//publisher created here for visualizing shoe's acceleration data
+	ros::Publisher accel_left_pub = n.advertise<visualization_msgs::Marker> ("accel_left", 0);
+	ros::Publisher accel_right_pub = n.advertise<visualization_msgs::Marker> ("accel_right", 0);
+
 	
 	// TODO: The value of the variable strSession is obtained from argv here. 
 	// We want to modify the way the argument is parsed. 
 	// Try and follow the tutorial on Parameter Server, and use the parameter server to obtain the argument supplied to rosrun, e.g. :
-	// rosrun sport_sole sport_sole_publisher session_name:=abc.
+	// rosrun sport_sole sport_sole_publisher _session_name:=abc.
 	std::string stringSession;
 	if (n.getParam("session_name", stringSession)) {
 		ROS_INFO("Session_name: %s\n",stringSession.c_str());
@@ -899,11 +911,11 @@ int main(int argc, char* argv[])
 		msgLeft.acceleration.linear.x = dataPacketL.ax1;
 		msgLeft.acceleration.linear.y = dataPacketL.ay1; 
 		msgLeft.acceleration.linear.z = dataPacketL.az1;
-		tf::Quaternion q1(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
-		tf::Quaternion q2(tf::Vector3(1, 0, 0), dataPacketL.pitch1);
-		tf::Quaternion q3(tf::Vector3(0, 1, 0), dataPacketL.roll1);
-		tf::Quaternion q = q1 * q2 * q3;
-		tf::quaternionTFToMsg(q, msgLeft.quaternion);
+		tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
+		tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
+		tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
+		tf::Quaternion q_left = q1_left * q2_left * q3_left;
+		tf::quaternionTFToMsg(q_left, msgLeft.quaternion);
 		msgLeft.pressures[0] = dataPacketL.p1; 
 		msgLeft.pressures[1] = dataPacketL.p2; 
 		msgLeft.pressures[2] = dataPacketL.p3;
@@ -912,15 +924,87 @@ int main(int argc, char* argv[])
 		msgLeft.pressures[5] = dataPacketL.p6;
 		msgLeft.pressures[6] = dataPacketL.p7;
 		msgLeft.pressures[7] = dataPacketL.p8;
-		
-		
+		msgLeft_pub.publish(msgLeft);
+
+
+		msgRight.header.stamp = ros::Time::now();
+		msgRight.acceleration.linear.x = dataPacketR.ax1;
+		msgRight.acceleration.linear.y = dataPacketR.ay1; 
+		msgRight.acceleration.linear.z = dataPacketR.az1;
+		tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
+		tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
+		tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
+		tf::Quaternion q_right = q1_right * q2_right * q3_right;
+		tf::quaternionTFToMsg(q_right, msgRight.quaternion);
+		msgRight.pressures[0] = dataPacketR.p1; 
+		msgRight.pressures[1] = dataPacketR.p2; 
+		msgRight.pressures[2] = dataPacketR.p3;
+		msgRight.pressures[3] = dataPacketR.p4;
+		msgRight.pressures[4] = dataPacketR.p5;
+		msgRight.pressures[5] = dataPacketR.p6;
+		msgRight.pressures[6] = dataPacketR.p7;
+		msgRight.pressures[7] = dataPacketR.p8;
+		msgRight_pub.publish(msgRight);
+
+
+		// Populate data and use Publisher accel_left_pub to represent the acceleration
+		visualization_msgs::Marker markerLeft, markerRight;
+		geometry_msgs:: Point temp_point_left, temp_point_right; 
+		markerLeft.header.frame_id = "shoe_left";
+		markerLeft.header.stamp = ros::Time::now();
+		markerLeft.ns = "~";
+		markerLeft.id = 0;
+		markerLeft.type = visualization_msgs::Marker::ARROW;
+		markerLeft.action = visualization_msgs::Marker::ADD; 
+		temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
+		markerLeft.points.push_back(temp_point_left);  //creates the start of the arrow
+		temp_point_left.x = msgLeft.acceleration.linear.x;
+		temp_point_left.y = msgLeft.acceleration.linear.y;
+		temp_point_left.z = msgLeft.acceleration.linear.z;
+		markerLeft.points.push_back(temp_point_left);  //end of the arrow
+		markerLeft.scale.x = 0.1;
+		markerLeft.scale.y = 0.2;
+		markerLeft.scale.z = 0.3;
+		markerLeft.color.a = 1.0; 
+		markerLeft.color.r = 1.0;
+		markerLeft.color.g = 0.0;
+		markerLeft.color.b = 0.0;
+		accel_left_pub.publish(markerLeft);
+
+
+		markerRight.header.frame_id = "shoe_right";
+		markerRight.header.stamp = ros::Time::now();
+		markerRight.ns = "~";
+		markerRight.id = 1;
+		markerRight.type = visualization_msgs::Marker::ARROW;
+		markerRight.action = visualization_msgs::Marker::ADD; 
+		temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
+		markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
+		temp_point_right.x = msgRight.acceleration.linear.x;
+		temp_point_right.y = msgRight.acceleration.linear.y;
+		temp_point_right.z = msgRight.acceleration.linear.z;
+		markerRight.points.push_back(temp_point_right);  //end of the arrow
+		markerRight.scale.x = 0.1;
+		markerRight.scale.y = 0.2;
+		markerRight.scale.z = 0.3;
+		markerRight.color.a = 1.0; 
+		markerRight.color.r = 1.0;
+		markerRight.color.g = 0.0;
+		markerRight.color.b = 0.0;
+		accel_right_pub.publish(markerRight);
+
 		//incorporates rviz to visualize left shoe orientation (RPY)
-		static tf::TransformBroadcaster br;
-		tf::Transform transformL;
-		transformL.setOrigin( tf::Vector3(0, 0, 0) );
-		transformL.setRotation(q);
-		br.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
+		static tf::TransformBroadcaster br_left, br_right;
+		tf::Transform transformL, transformR;
+		transformL.setOrigin( tf::Vector3(0.75, 0, 0) );
+		transformL.setRotation(q_left);
+		br_left.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
+
+		transformR.setOrigin( tf::Vector3(-0.75, 0, 0) );
+		transformR.setRotation(q_right);
+		br_right.sendTransform(tf::StampedTransform(transformR, ros::Time::now(), "map", "shoe_right"));
 		
+
 		// Send data to PD
 		if ((cycles%70)==0)
 		{

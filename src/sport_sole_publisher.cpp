@@ -34,6 +34,7 @@
 #include <tf/transform_broadcaster.h>
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/Point.h>
+#include <std_msgs/String.h>
 
 
 #define US_CYCLES 1000 //[us]
@@ -656,8 +657,8 @@ int main(int argc, char* argv[])
 
 
 	//publish msgs
-	ros::Publisher msgLeft_pub = n.advertise<std::string> ("dataLeft", 0) ;
-	ros::Publisher msgRight_pub = n.advertise<std::string> ("dataRight", 0) ;
+	ros::Publisher msgLeft_pub = n.advertise<std_msgs::String> ("sport_sole_left", 0) ;
+	ros::Publisher msgRight_pub = n.advertise<std_msgs::String> ("sport_sole_right", 0) ;
 
 
 	//publisher created here for visualizing shoe's acceleration data

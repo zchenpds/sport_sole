@@ -836,6 +836,10 @@ int main(int argc, char* argv[])
 	ROS_INFO("Data will be logged in %s\n", strFile);
 	FILE * pFile;
 	pFile = fopen (strFile, "wb");
+	if (!pFile)
+	{
+		ROS_ERROR_STREAM("Cannot open file for logging!");
+	}
 	
 #define CYCLES_WRITE 500
 	
@@ -1041,7 +1045,8 @@ int main(int argc, char* argv[])
 			memcpy(&vFileBuffer[idxFileWrite*PACKET_LENGTH_LOG],&bufferLog,PACKET_LENGTH_LOG);
 			
 			//Write LOG
-			fwrite(&vFileBuffer,CYCLES_WRITE*PACKET_LENGTH_LOG, 1, pFile);
+			if (pFile)
+				fwrite(&vFileBuffer,CYCLES_WRITE*PACKET_LENGTH_LOG, 1, pFile);
 			
 			idxFileWrite=0;
 		}

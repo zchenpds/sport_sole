@@ -71,6 +71,7 @@
 using namespace std;
 
 mutex dataMutex;
+bool is_running = true;
 
 struct structDataPacketPureData 
 {
@@ -430,10 +431,10 @@ void threadSYNCreceive(structSync* SyncBoard)
 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK); 
 		
-	while(1)
+	while(is_running)
 	{		
-		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_SYNC,0,(struct sockaddr *)&addrClient,&len);
-		
+		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_SYNC,MSG_DONTWAIT,(struct sockaddr *)&addrClient,&len);
+
 		if (ret>1)
 		{			
 			dataMutex.lock();
@@ -451,7 +452,9 @@ void threadSYNCreceive(structSync* SyncBoard)
 			
 			dataMutex.unlock();
 			
-		}	
+		}
+		else
+			this_thread::sleep_for(chrono::microseconds(1));
 	}
 
 }
@@ -493,9 +496,9 @@ void threadUDPreceive(structPDShoe* PDShoe)
 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK); 
 		
-	while(1)
+	while(is_running)
 	{		
-		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_WIFI,0,(struct sockaddr *)&addrClient,&len);
+		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_WIFI,MSG_DONTWAIT,(struct sockaddr *)&addrClient,&len);
 		
 		if (ret>1)
 		{
@@ -517,6 +520,8 @@ void threadUDPreceive(structPDShoe* PDShoe)
 			dataMutex.unlock();
 			
 		}
+		else
+			this_thread::sleep_for(chrono::microseconds(1));
 		cycles++;
 	}
 }
@@ -805,10 +810,10 @@ int main(int argc, char* argv[])
 	threadSync=thread(threadSYNCreceive,&Sync);
 	//threadPressureReadVal=thread(threadCheckPressureReadVal,&pressureVal);
 		
-	threadPDShoeL.detach();
-	threadPDShoeR.detach();
+	//threadPDShoeL.detach();
+	//threadPDShoeR.detach();
 	//threadResetLED.detach();
-	threadSync.detach();
+	//threadSync.detach();
 	//threadPressureReadVal.detach();
 	
 	usleep(1000);
@@ -870,7 +875,7 @@ int main(int argc, char* argv[])
 	//RAND_MAX is (2^31-1)=2147483647
 	
 	bool cond=false;
-	while(!cond)
+	while(!cond && ros::ok() && !ros::isShuttingDown())
 	{
 		dataMutex.lock();
 		cond=(PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0); //&& (PDShoeR.packetReceived>0);
@@ -882,7 +887,7 @@ int main(int argc, char* argv[])
 	ROS_INFO("Start!\n");
 	timestamp_start=getMicrosTimeStamp();
 		
-	while(1)
+	while(ros::ok() && !ros::isShuttingDown())
 	{
 		timestamp=getMicrosTimeStamp();
 		
@@ -1089,13 +1094,12 @@ int main(int argc, char* argv[])
 		
 		
 	}
+
+	is_running = false;
 	
-	//Never here, but..
-	threadPDShoeL.~thread();
-	threadPDShoeR.~thread();	
-	//threadResetLED.~thread();
-	threadSync.~thread();
-	//threadPressureReadVal.~thread();
+	threadPDShoeL.join();
+	threadPDShoeR.join();	
+	threadSync.join();
 	return 0; 
 } 
 

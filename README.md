@@ -39,7 +39,7 @@ Similar purpose as CMakeLists.txt
 # Configurations
 The following configurations assume that you use a TP-Link router.
 
-1. The router IP address must be `192.168.1.1`. This can be set in "Advanced" -> "Network" -> "IP Address".
+1. The router IP address must be `192.168.1.254`. This can be set in "Advanced" -> "Network" -> "IP Address".
 1. The address of the host PC must be `192.168.1.100`. This can be set in "Advanced" -> "DHCP" -> "Address Reservation".
 1. The router SSID must be named "SportShoe". This can be set in "Advanced" -> "Wireless 2.4GHz" -> Wireless Settings" -> "Wireless Network Name"
 1. The network traffic can be monitored in "Advanced" -> "Wireless 2.4GHz" -> "Wireless Statistics".

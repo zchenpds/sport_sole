@@ -35,13 +35,14 @@
 #include <visualization_msgs/Marker.h>
 #include <geometry_msgs/Point.h>
 #include <std_msgs/String.h>
+#include <std_msgs/UInt8.h>
 
 
 #define US_CYCLES 1000 //[us]
 
 #define BUFFER 4096
 #define PACKET_LENGTH_WIFI  51//47//45
-#define PACKET_LENGTH_LOG   106//95//91//88//87//86//84
+#define PACKET_LENGTH_LOG   114
 #define PACKET_LENGTH_PD    24//22
 #define PACKET_LENGTH_LED    8
 #define PACKET_LENGTH_TIME   16//8
@@ -65,7 +66,7 @@
 #define PACKET_LENGTH_RESET_LED 6
 #define PACKET_LENGTH_PRESSUREVAL 8
 #define PACKET_LENGTH_MATLAB 7
-
+const int PUB_PERIOD_MS = 10;
 
 #define TIME_TO_WAIT_US 11000000 // wait 11s before starting the metronome
 using namespace std;
@@ -120,7 +121,6 @@ struct structDataPacket
 	uint8_t Odroid_Trigger;
 	
 	uint32_t timestamp2;
-
 };
 
 struct structSyncPacket 
@@ -143,6 +143,74 @@ struct structSWstat
 	unsigned int packetReceivedSync;
 	
 };
+
+struct structGaitPhaseDetection
+{
+	uint16_t HS[2];
+	uint16_t TO[10];
+
+    uint8_t  GaitState[4];
+	
+	structGaitPhaseDetection():
+		HS{},
+		TO{}
+	{
+		GaitState[0] = 0;
+		GaitState[1] = 0;
+		GaitState[2] = 1;
+		GaitState[3] = 1; 
+	}
+	
+	void update(uint16_t hs, uint16_t to)
+	{
+		if (hs>=100 && HS[1]<100)
+		{
+		  GaitState[0] = 1;	
+		}
+		else
+		{
+		  GaitState[0] = 0;	
+		}
+		
+		if (hs>=100)
+		{
+		  GaitState[2] = 1;	
+		}
+		else
+		{
+		  GaitState[2] = 0; 	
+		}
+		
+		if (to<=150 && TO[9]>150)
+		{
+		  GaitState[1] = 1;	
+		}
+		else
+		{
+		  GaitState[1] = 0;	
+		}
+		
+		if (to>=150)
+		{
+		  GaitState[3] = 1;	
+		}
+		else
+		{
+		  GaitState[3] = 0; 	
+		}		
+						
+		HS[0]=HS[1];
+		HS[1]=hs;
+		
+		for(int i=0;i<9;i++)
+		{
+			TO[i]=TO[i+1];
+		}
+		TO[9]=to;
+	}
+}; 
+
+
 
 inline void reconstructStruct(structDataPacketPureDataRAW dataPacketRAW, structDataPacketPureData &dataPacket)
 {
@@ -290,15 +358,6 @@ inline void reconstructStructPureDataRAW(uint8_t* recvbuffer,structDataPacketPur
 	pointer[1]=recvbuffer[46];
 	pointer[0]=recvbuffer[47];	
     // //currenttime
-//     pointer=(uint8_t*)&dataPacket.currenttime;
-//     pointer[7]=recvbuffer[48];
-// 	pointer[6]=recvbuffer[49];
-// 	pointer[5]=recvbuffer[50];
-// 	pointer[4]=recvbuffer[51];
-// 	pointer[3]=recvbuffer[52];
-// 	pointer[2]=recvbuffer[53];
-// 	pointer[1]=recvbuffer[54];
-// 	pointer[0]=recvbuffer[55];
 
 
 	//recvbuffer[44];
@@ -393,13 +452,11 @@ inline bool checkSyncPacket(uint8_t *buffer,int ret)
 };
 
 
-
-
 void threadSYNCreceive(structSync* SyncBoard)
 {
 	dataMutex.lock();
 	
-	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]\n",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
 
 	//unsigned int nReset=0;
 	uint8_t id;
@@ -454,7 +511,7 @@ void threadSYNCreceive(structSync* SyncBoard)
 			
 		}
 		else
-			this_thread::sleep_for(chrono::microseconds(1));
+			this_thread::sleep_for(chrono::milliseconds(1));
 	}
 
 }
@@ -464,7 +521,7 @@ void threadUDPreceive(structPDShoe* PDShoe)
 {
 	dataMutex.lock();
 	
-	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]\n",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
 	
 	uint8_t id;
 	unsigned long int cycles=0;
@@ -521,14 +578,13 @@ void threadUDPreceive(structPDShoe* PDShoe)
 			
 		}
 		else
-			this_thread::sleep_for(chrono::microseconds(1));
+			this_thread::sleep_for(chrono::milliseconds(1));
 		cycles++;
 	}
 }
 
 
-
-void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,uint8_t Odroid_Trigger,uint64_t currenttime,uint8_t Ext_Trigger)
+void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,uint8_t Odroid_Trigger,uint64_t currenttime,uint8_t Ext_Trigger,uint8_t* GaitStateL, uint8_t* GaitStateR)
 {
 	uint8_t *pointer;
 	//See PureData Packet {XLS File}
@@ -560,30 +616,21 @@ void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,u
     buffer_out[101]=Odroid_Trigger;
 	
 	buffer_out[102]=Ext_Trigger;
-	// for(int i=0;i<4;i++)
-	// {
-	// 	buffer_out[i+44]=cycles;
-	// 	buffer_out[i+97]=cycles;
-	// }
-	//
-	// for(int i=0;i<8;i++)
-	// {
-	// 	buffer_out[i+48]=currenttime;
-	// 	buffer_out[i+101]=currenttime;
-	// }
 
-	//     buffer_out[97]=metrobool;
-	//     buffer_out[98]=currMode;
-	//
-	// buffer_out[99]=Sync;
-	// buffer_out[100]=currState;
-
-	// buffer_out[101]=0x4;
-	// buffer_out[102]=0x5;
-	// buffer_out[103]=0x6;
-	buffer_out[103]=0x4;
-	buffer_out[104]=0x5;
-	buffer_out[105]=0x6;
+	// Left
+	buffer_out[103]= GaitStateL[0];
+    buffer_out[104]= GaitStateL[1];
+	buffer_out[105]= GaitStateL[2];
+    buffer_out[106]= GaitStateL[3];
+	// Right
+	buffer_out[107]= GaitStateR[0];
+    buffer_out[108]= GaitStateR[1];
+	buffer_out[109]= GaitStateR[2];
+    buffer_out[110]= GaitStateR[3];		
+			
+	buffer_out[111]=0x4;
+	buffer_out[112]=0x5;
+	buffer_out[113]=0x6;
 
 	//buffer_out[47]=trigger;
 }
@@ -619,41 +666,14 @@ void createTimePacket(uint8_t* buffer_out,uint64_t currenttime,uint8_t Odroid_Tr
 	buffer_out[13]=0x04; buffer_out[14]=0x05; buffer_out[15]=0x06;
 }
 
-
 int main(int argc, char* argv[])
 {	
-	ROS_INFO("\nHello from PD Shoe (SONAR, RESET, EXT SYNC, HIP-PACK LED and 8ch)\n\n");
-	//printf("WARNING: US_CYCLES 1000\n");
-		
-	// bool resetLED=0x00;
-	// bool condResetLed;
-	// bool resettingState=false;
-	// uint32_t lastResetTimestamp;
-    
-    // metronome
-	// int Tstr=0;
-	// int Tstep_min=0;
-	// int Tstep_max=0;
-	// int rand_interval=0;
-	// float RandRatio=0.0f;
-	// bool metrobool=0x00;
-	// uint64_t next_beat=0;
+	ROS_INFO("Hello from PD Shoe (SONAR, RESET, EXT SYNC, HIP-PACK LED and 8ch)");
 	
 	// automatic feedback modes
 	FILE * TemporalFile;
 	char strSession[N_STR];
 	char strTemporalFile[N_STR];
-	// uint8_t mode[N_MAX_MODES];
-	// uint8_t modePeriod[N_MAX_MODES];
-	// int numMode=0;
-	// uint8_t indCurrMode=0;
-	// uint8_t currMode=255;
-	// uint64_t nextModeSwitch=0;
-	/*
-	currMode=255; -> Do not force PD to change feedback mode
-	currMode=0; -> Force PD to turn feedback mode off
-	currMode=1..12; -> Force PD to change feedback mode off
-	*/
 
 	// TODO: Complete CMakeLists.txt
 	// create two publishers
@@ -662,13 +682,16 @@ int main(int argc, char* argv[])
 
 
 	//publish msgs
-	ros::Publisher msgLeft_pub = n.advertise<std_msgs::String> ("sport_sole_left", 0) ;
-	ros::Publisher msgRight_pub = n.advertise<std_msgs::String> ("sport_sole_right", 0) ;
+	//ros::Publisher msgLeft_pub = n.advertise<sport_sole::SportSole> ("sport_sole_left", 0) ;
+	//ros::Publisher msgRight_pub = n.advertise<sport_sole::SportSole> ("sport_sole_right", 0) ;
 
 
 	//publisher created here for visualizing shoe's acceleration data
 	ros::Publisher accel_left_pub = n.advertise<visualization_msgs::Marker> ("accel_left", 0);
 	ros::Publisher accel_right_pub = n.advertise<visualization_msgs::Marker> ("accel_right", 0);
+
+	// Publisher
+	ros::Publisher pub_gait_state = n.advertise<std_msgs::UInt8>("gait_state", 1);
 
 	
 	// TODO: The value of the variable strSession is obtained from argv here. 
@@ -677,7 +700,7 @@ int main(int argc, char* argv[])
 	// rosrun sport_sole sport_sole_publisher _session_name:=abc.
 	std::string stringSession;
 	if (n.getParam("session_name", stringSession)) {
-		ROS_INFO("Session_name: %s\n",stringSession.c_str());
+		ROS_INFO("Session_name: %s",stringSession.c_str());
 	}
 	else
 	{
@@ -709,6 +732,9 @@ int main(int argc, char* argv[])
 	structDataPacketPureData dataPacketL;
 	structDataPacketPureData dataPacketR;
 	structSyncPacket SyncPacket;
+
+	structGaitPhaseDetection GaitPhaseDetectionL;
+	structGaitPhaseDetection GaitPhaseDetectionR;
 	
 	swStat.packetLedSent=0;
 	swStat.packetGuiSent=0;
@@ -833,7 +859,7 @@ int main(int argc, char* argv[])
 	tstruct = *localtime(&timer);
 	strftime(strDate, sizeof(strDate), "%Y-%m-%d_%H-%M-%S", &tstruct);
 	sprintf(strFile,"%s/log/%s_%s.dat", getenv("HOME"),strDate,strSession);
-	ROS_INFO("Data will be logged in %s\n", strFile);
+	ROS_INFO("Data will be logged in %s", strFile);
 	FILE * pFile;
 	pFile = fopen (strFile, "wb");
 	if (!pFile)
@@ -874,8 +900,15 @@ int main(int argc, char* argv[])
 		// /* initialize random seed: */
 		// srand (time(NULL));
 		// 	  }
+
+	// Send an enable packet
+	currenttime = getMicrosTimeStamp()-timestamp_start;
+	createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+	bufferTime[3] = 1;
+	sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+	ROS_INFO("Enable packet sent");
 	
-	ROS_INFO("Waiting...\n");
+	ROS_INFO("Waiting...");
 	//RAND_MAX is (2^31-1)=2147483647
 	
 	bool cond=false;
@@ -888,7 +921,7 @@ int main(int argc, char* argv[])
 		usleep(500);
 	}
 	
-	ROS_INFO("Start!\n");
+	ROS_INFO("Start!");
 	timestamp_start=getMicrosTimeStamp();
 		
 	while(ros::ok() && !ros::isShuttingDown())
@@ -914,106 +947,109 @@ int main(int argc, char* argv[])
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
 			
+		if (cycles % PUB_PERIOD_MS == 0)
+		{
 			
-		// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
-		sport_sole::SportSole msgLeft, msgRight;
-		msgLeft.header.stamp = ros::Time::now();
-		msgLeft.acceleration.linear.x = dataPacketL.ax1;
-		msgLeft.acceleration.linear.y = dataPacketL.ay1; 
-		msgLeft.acceleration.linear.z = dataPacketL.az1;
-		tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
-		tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
-		tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
-		tf::Quaternion q_left = q1_left * q2_left * q3_left;
-		tf::quaternionTFToMsg(q_left, msgLeft.quaternion);
-		msgLeft.pressures[0] = dataPacketL.p1; 
-		msgLeft.pressures[1] = dataPacketL.p2; 
-		msgLeft.pressures[2] = dataPacketL.p3;
-		msgLeft.pressures[3] = dataPacketL.p4;
-		msgLeft.pressures[4] = dataPacketL.p5;
-		msgLeft.pressures[5] = dataPacketL.p6;
-		msgLeft.pressures[6] = dataPacketL.p7;
-		msgLeft.pressures[7] = dataPacketL.p8;
-		msgLeft_pub.publish(msgLeft);
+			// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
+			sport_sole::SportSole msgLeft, msgRight;
+			msgLeft.header.stamp = ros::Time::now();
+			msgLeft.acceleration.linear.x = dataPacketL.ax1;
+			msgLeft.acceleration.linear.y = dataPacketL.ay1; 
+			msgLeft.acceleration.linear.z = dataPacketL.az1;
+			tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
+			tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
+			tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
+			tf::Quaternion q_left = q1_left * q2_left * q3_left;
+			tf::quaternionTFToMsg(q_left, msgLeft.quaternion);
+			msgLeft.pressures[0] = dataPacketL.p1; 
+			msgLeft.pressures[1] = dataPacketL.p2; 
+			msgLeft.pressures[2] = dataPacketL.p3;
+			msgLeft.pressures[3] = dataPacketL.p4;
+			msgLeft.pressures[4] = dataPacketL.p5;
+			msgLeft.pressures[5] = dataPacketL.p6;
+			msgLeft.pressures[6] = dataPacketL.p7;
+			msgLeft.pressures[7] = dataPacketL.p8;
+			//msgLeft_pub.publish(msgLeft);
 
 
-		msgRight.header.stamp = ros::Time::now();
-		msgRight.acceleration.linear.x = dataPacketR.ax1;
-		msgRight.acceleration.linear.y = dataPacketR.ay1; 
-		msgRight.acceleration.linear.z = dataPacketR.az1;
-		tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
-		tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
-		tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
-		tf::Quaternion q_right = q1_right * q2_right * q3_right;
-		tf::quaternionTFToMsg(q_right, msgRight.quaternion);
-		msgRight.pressures[0] = dataPacketR.p1; 
-		msgRight.pressures[1] = dataPacketR.p2; 
-		msgRight.pressures[2] = dataPacketR.p3;
-		msgRight.pressures[3] = dataPacketR.p4;
-		msgRight.pressures[4] = dataPacketR.p5;
-		msgRight.pressures[5] = dataPacketR.p6;
-		msgRight.pressures[6] = dataPacketR.p7;
-		msgRight.pressures[7] = dataPacketR.p8;
-		msgRight_pub.publish(msgRight);
+			msgRight.header.stamp = ros::Time::now();
+			msgRight.acceleration.linear.x = dataPacketR.ax1;
+			msgRight.acceleration.linear.y = dataPacketR.ay1; 
+			msgRight.acceleration.linear.z = dataPacketR.az1;
+			tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
+			tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
+			tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
+			tf::Quaternion q_right = q1_right * q2_right * q3_right;
+			tf::quaternionTFToMsg(q_right, msgRight.quaternion);
+			msgRight.pressures[0] = dataPacketR.p1; 
+			msgRight.pressures[1] = dataPacketR.p2; 
+			msgRight.pressures[2] = dataPacketR.p3;
+			msgRight.pressures[3] = dataPacketR.p4;
+			msgRight.pressures[4] = dataPacketR.p5;
+			msgRight.pressures[5] = dataPacketR.p6;
+			msgRight.pressures[6] = dataPacketR.p7;
+			msgRight.pressures[7] = dataPacketR.p8;
+			//msgRight_pub.publish(msgRight);
+			
+
+			// Populate data and use Publisher accel_left_pub to represent the acceleration
+			visualization_msgs::Marker markerLeft, markerRight;
+			geometry_msgs:: Point temp_point_left, temp_point_right; 
+			markerLeft.header.frame_id = "shoe_left";
+			markerLeft.header.stamp = ros::Time::now();
+			markerLeft.ns = "~";
+			markerLeft.id = 0;
+			markerLeft.type = visualization_msgs::Marker::ARROW;
+			markerLeft.action = visualization_msgs::Marker::ADD; 
+			temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
+			markerLeft.points.push_back(temp_point_left);  //creates the start of the arrow
+			temp_point_left.x = msgLeft.acceleration.linear.x;
+			temp_point_left.y = msgLeft.acceleration.linear.y;
+			temp_point_left.z = msgLeft.acceleration.linear.z;
+			markerLeft.points.push_back(temp_point_left);  //end of the arrow
+			markerLeft.scale.x = 0.1;
+			markerLeft.scale.y = 0.2;
+			markerLeft.scale.z = 0.3;
+			markerLeft.color.a = 1.0; 
+			markerLeft.color.r = 1.0;
+			markerLeft.color.g = 0.0;
+			markerLeft.color.b = 0.0;
+			accel_left_pub.publish(markerLeft);
 
 
-		// Populate data and use Publisher accel_left_pub to represent the acceleration
-		visualization_msgs::Marker markerLeft, markerRight;
-		geometry_msgs:: Point temp_point_left, temp_point_right; 
-		markerLeft.header.frame_id = "shoe_left";
-		markerLeft.header.stamp = ros::Time::now();
-		markerLeft.ns = "~";
-		markerLeft.id = 0;
-		markerLeft.type = visualization_msgs::Marker::ARROW;
-		markerLeft.action = visualization_msgs::Marker::ADD; 
-		temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
-		markerLeft.points.push_back(temp_point_left);  //creates the start of the arrow
-		temp_point_left.x = msgLeft.acceleration.linear.x;
-		temp_point_left.y = msgLeft.acceleration.linear.y;
-		temp_point_left.z = msgLeft.acceleration.linear.z;
-		markerLeft.points.push_back(temp_point_left);  //end of the arrow
-		markerLeft.scale.x = 0.1;
-		markerLeft.scale.y = 0.2;
-		markerLeft.scale.z = 0.3;
-		markerLeft.color.a = 1.0; 
-		markerLeft.color.r = 1.0;
-		markerLeft.color.g = 0.0;
-		markerLeft.color.b = 0.0;
-		accel_left_pub.publish(markerLeft);
+			markerRight.header.frame_id = "shoe_right";
+			markerRight.header.stamp = ros::Time::now();
+			markerRight.ns = "~";
+			markerRight.id = 1;
+			markerRight.type = visualization_msgs::Marker::ARROW;
+			markerRight.action = visualization_msgs::Marker::ADD; 
+			temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
+			markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
+			temp_point_right.x = msgRight.acceleration.linear.x;
+			temp_point_right.y = msgRight.acceleration.linear.y;
+			temp_point_right.z = msgRight.acceleration.linear.z;
+			markerRight.points.push_back(temp_point_right);  //end of the arrow
+			markerRight.scale.x = 0.1;
+			markerRight.scale.y = 0.2;
+			markerRight.scale.z = 0.3;
+			markerRight.color.a = 1.0; 
+			markerRight.color.r = 1.0;
+			markerRight.color.g = 0.0;
+			markerRight.color.b = 0.0;
+			accel_right_pub.publish(markerRight);
+/*
+			//incorporates rviz to visualize left shoe orientation (RPY)
+			static tf::TransformBroadcaster br_left, br_right;
+			tf::Transform transformL, transformR;
+			transformL.setOrigin( tf::Vector3(0.75, 0, 0) );
+			transformL.setRotation(q_left);
+			br_left.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
 
-
-		markerRight.header.frame_id = "shoe_right";
-		markerRight.header.stamp = ros::Time::now();
-		markerRight.ns = "~";
-		markerRight.id = 1;
-		markerRight.type = visualization_msgs::Marker::ARROW;
-		markerRight.action = visualization_msgs::Marker::ADD; 
-		temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
-		markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
-		temp_point_right.x = msgRight.acceleration.linear.x;
-		temp_point_right.y = msgRight.acceleration.linear.y;
-		temp_point_right.z = msgRight.acceleration.linear.z;
-		markerRight.points.push_back(temp_point_right);  //end of the arrow
-		markerRight.scale.x = 0.1;
-		markerRight.scale.y = 0.2;
-		markerRight.scale.z = 0.3;
-		markerRight.color.a = 1.0; 
-		markerRight.color.r = 1.0;
-		markerRight.color.g = 0.0;
-		markerRight.color.b = 0.0;
-		accel_right_pub.publish(markerRight);
-
-		//incorporates rviz to visualize left shoe orientation (RPY)
-		static tf::TransformBroadcaster br_left, br_right;
-		tf::Transform transformL, transformR;
-		transformL.setOrigin( tf::Vector3(0.75, 0, 0) );
-		transformL.setRotation(q_left);
-		br_left.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
-
-		transformR.setOrigin( tf::Vector3(-0.75, 0, 0) );
-		transformR.setRotation(q_right);
-		br_right.sendTransform(tf::StampedTransform(transformR, ros::Time::now(), "map", "shoe_right"));
-		
+			transformR.setOrigin( tf::Vector3(-0.75, 0, 0) );
+			transformR.setRotation(q_right);
+			br_right.sendTransform(tf::StampedTransform(transformR, ros::Time::now(), "map", "shoe_right"));
+			*/
+		}
 
 		// Send data to PD
 		if ((cycles%70)==0)
@@ -1037,8 +1073,24 @@ int main(int argc, char* argv[])
 			sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
 			swStat.packetBroadSent++;
 		}
+
+		GaitPhaseDetectionL.update(dataPacketRawL.p7+dataPacketRawL.p8,dataPacketRawL.p1+dataPacketRawL.p2);
+		GaitPhaseDetectionR.update(dataPacketRawR.p7+dataPacketRawR.p8,dataPacketRawR.p1+dataPacketRawR.p2);
 		
-		createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,Odroid_Trigger,currenttime,SyncPacket.Ext_Trigger);
+		if (cycles % PUB_PERIOD_MS == 0)
+		{
+			std_msgs::UInt8 msg_gait_state;
+			msg_gait_state.data = 0;
+			msg_gait_state.data |= 
+				(GaitPhaseDetectionL.GaitState[2] << 3) | // left heel
+				(GaitPhaseDetectionL.GaitState[3] << 2) | // left toe
+				(GaitPhaseDetectionR.GaitState[2] << 1) | // right heel
+				(GaitPhaseDetectionR.GaitState[3] << 0);  // right toe
+
+			pub_gait_state.publish(msg_gait_state);
+		}
+
+		createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,Odroid_Trigger,currenttime,SyncPacket.Ext_Trigger,GaitPhaseDetectionL.GaitState,GaitPhaseDetectionR.GaitState);
 		//createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,precTrigger,(uint8_t)(metrobool),currMode,PressBuff[0],PressBuff[1]);
 		if (idxFileWrite==(CYCLES_WRITE-1))
 		{
@@ -1056,37 +1108,15 @@ int main(int argc, char* argv[])
 			idxFileWrite++;
 		}
 		
-		if((cycles%100)==0)
-		{
-			sendto(sockfdLed,bufferLed,PACKET_LENGTH_LED,0,(struct sockaddr *)&addrLed,sizeof(addrLed));
-			swStat.packetLedSent++;
-			//writeGPIO(ledTrigger, GPIOzero, GPIOone);
-	
-		}
-		
 		if((cycles%1000)==0)
 		{
-			// DEBUG
-			//printf("|| LH%04d[%d] - LF%04d[%d] || RH%04d[%d] - RF%04d[%d] || Stat: %02d\n",heelL,heelOnL,frontL,frontOnL,heelR,heelOnR,frontR,frontOnR,currState);
-			//printf("LEFT: p1[%d] - p2[%d] - p3[%d] - p4[%d]\n",dataPacketL.p1,dataPacketL.p2,dataPacketL.p3,dataPacketL.p4);
-			//printf("RIGHT: p1[%d] - p2[%d] - p3[%d] - p4[%d]\n",dataPacketR.p1,dataPacketR.p2,dataPacketR.p3,dataPacketR.p4);
-			//printf("State=%d\n",currState);
 
-		     //        if(Tstr > 0)
-		     //           {
-			    // printf("cycles=%d err(L)=%d err(R)=%d p(L)=%d p(R)=%d metro ON\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR);
-		     //           }
-		     //           else
-		     //           {
 			float currenttime_float_sec=((float)(currenttime))/1000000.0f;
-				ROS_INFO("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d p(B)=%d Tr=%d, t=%5.2f ExtSync=%d\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,swStat.packetBroadSent,Odroid_Trigger,currenttime_float_sec,SyncPacket.Ext_Trigger);
-				   //printf("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d PressVal=%d\n",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,pressureVal);
-				   //printf("[%d %d]\n",PressBuff[0],PressBuff[1]);
-		               // }
+			ROS_INFO("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d p(B)=%d Tr=%d, t=%5.2f ExtSync=%d",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,swStat.packetBroadSent,Odroid_Trigger,currenttime_float_sec,SyncPacket.Ext_Trigger);
+			//printf("cycles=%d err(L)=%d err(R)=%d err(S)=%d p(L)=%d p(R)=%d p(S)=%d PressVal=%d",cycles,swStat.packetErrorPdShoeL,swStat.packetErrorPdShoeR,swStat.packetErrorSync,swStat.packetReceivedPdShoeL,swStat.packetReceivedPdShoeR,swStat.packetReceivedSync,pressureVal);
 
 	    }
 		
-			
 		cycles++;
 		
 		tCycle=getMicrosTimeStamp()-timestamp;
@@ -1100,6 +1130,13 @@ int main(int argc, char* argv[])
 		
 	}
 
+	// Send an reset packet
+	currenttime = getMicrosTimeStamp()-timestamp_start;
+	createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+	bufferTime[3] = 0;
+	sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+	ROS_INFO("Reset packet sent!");
+	
 	is_running = false;
 	
 	threadPDShoeL.join();

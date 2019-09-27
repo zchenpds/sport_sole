@@ -144,6 +144,8 @@ struct structSWstat
 	
 };
 
+
+// This function is authored by Huanghe Zhang
 struct structGaitPhaseDetection
 {
 	uint16_t HS[2];
@@ -548,10 +550,6 @@ void threadUDPreceive(structPDShoe* PDShoe)
 	id=PDShoe->id;
 	dataMutex.unlock();
 	usleep(250);
-	
-	// No blocking mode
-	//int opts=fcntl(sockfdServer, F_GETFL, 0);
-	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK); 
 		
 	while(is_running)
 	{		

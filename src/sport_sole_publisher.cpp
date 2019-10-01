@@ -680,16 +680,12 @@ int main(int argc, char* argv[])
 
 
 	//publish msgs
-	//ros::Publisher msgLeft_pub = n.advertise<sport_sole::SportSole> ("sport_sole_left", 0) ;
-	//ros::Publisher msgRight_pub = n.advertise<sport_sole::SportSole> ("sport_sole_right", 0) ;
+	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 0) ;
 
 
 	//publisher created here for visualizing shoe's acceleration data
 	ros::Publisher accel_left_pub = n.advertise<visualization_msgs::Marker> ("accel_left", 0);
 	ros::Publisher accel_right_pub = n.advertise<visualization_msgs::Marker> ("accel_right", 0);
-
-	// Publisher
-	ros::Publisher pub_gait_state = n.advertise<std_msgs::UInt8>("gait_state", 1);
 
 	
 	// TODO: The value of the variable strSession is obtained from argv here. 
@@ -945,48 +941,48 @@ int main(int argc, char* argv[])
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
 			
+		sport_sole::SportSole msg;
 		if (cycles % PUB_PERIOD_MS == 0)
 		{
 			
 			// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
-			sport_sole::SportSole msgLeft, msgRight;
-			msgLeft.header.stamp = ros::Time::now();
-			msgLeft.acceleration.linear.x = dataPacketL.ax1;
-			msgLeft.acceleration.linear.y = dataPacketL.ay1; 
-			msgLeft.acceleration.linear.z = dataPacketL.az1;
+			msg.header.stamp = ros::Time::now();
+			msg.acceleration[0].linear.x = dataPacketL.ax1;
+			msg.acceleration[0].linear.y = dataPacketL.ay1; 
+			msg.acceleration[0].linear.z = dataPacketL.az1;
 			tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
 			tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
 			tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
 			tf::Quaternion q_left = q1_left * q2_left * q3_left;
-			tf::quaternionTFToMsg(q_left, msgLeft.quaternion);
-			msgLeft.pressures[0] = dataPacketL.p1; 
-			msgLeft.pressures[1] = dataPacketL.p2; 
-			msgLeft.pressures[2] = dataPacketL.p3;
-			msgLeft.pressures[3] = dataPacketL.p4;
-			msgLeft.pressures[4] = dataPacketL.p5;
-			msgLeft.pressures[5] = dataPacketL.p6;
-			msgLeft.pressures[6] = dataPacketL.p7;
-			msgLeft.pressures[7] = dataPacketL.p8;
+			tf::quaternionTFToMsg(q_left, msg.quaternion[0]);
+			int p_index = 0;
+			msg.pressures[p_index++] = dataPacketL.p1; 
+			msg.pressures[p_index++] = dataPacketL.p2; 
+			msg.pressures[p_index++] = dataPacketL.p3;
+			msg.pressures[p_index++] = dataPacketL.p4;
+			msg.pressures[p_index++] = dataPacketL.p5;
+			msg.pressures[p_index++] = dataPacketL.p6;
+			msg.pressures[p_index++] = dataPacketL.p7;
+			msg.pressures[p_index++] = dataPacketL.p8;
 			//msgLeft_pub.publish(msgLeft);
 
 
-			msgRight.header.stamp = ros::Time::now();
-			msgRight.acceleration.linear.x = dataPacketR.ax1;
-			msgRight.acceleration.linear.y = dataPacketR.ay1; 
-			msgRight.acceleration.linear.z = dataPacketR.az1;
+			msg.acceleration[1].linear.x = dataPacketR.ax1;
+			msg.acceleration[1].linear.y = dataPacketR.ay1; 
+			msg.acceleration[1].linear.z = dataPacketR.az1;
 			tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
 			tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
 			tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
 			tf::Quaternion q_right = q1_right * q2_right * q3_right;
-			tf::quaternionTFToMsg(q_right, msgRight.quaternion);
-			msgRight.pressures[0] = dataPacketR.p1; 
-			msgRight.pressures[1] = dataPacketR.p2; 
-			msgRight.pressures[2] = dataPacketR.p3;
-			msgRight.pressures[3] = dataPacketR.p4;
-			msgRight.pressures[4] = dataPacketR.p5;
-			msgRight.pressures[5] = dataPacketR.p6;
-			msgRight.pressures[6] = dataPacketR.p7;
-			msgRight.pressures[7] = dataPacketR.p8;
+			tf::quaternionTFToMsg(q_right, msg.quaternion[1]);
+			msg.pressures[p_index++] = dataPacketR.p1; 
+			msg.pressures[p_index++] = dataPacketR.p2; 
+			msg.pressures[p_index++] = dataPacketR.p3;
+			msg.pressures[p_index++] = dataPacketR.p4;
+			msg.pressures[p_index++] = dataPacketR.p5;
+			msg.pressures[p_index++] = dataPacketR.p6;
+			msg.pressures[p_index++] = dataPacketR.p7;
+			msg.pressures[p_index++] = dataPacketR.p8;
 			//msgRight_pub.publish(msgRight);
 			
 
@@ -1001,9 +997,9 @@ int main(int argc, char* argv[])
 			markerLeft.action = visualization_msgs::Marker::ADD; 
 			temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
 			markerLeft.points.push_back(temp_point_left);  //creates the start of the arrow
-			temp_point_left.x = msgLeft.acceleration.linear.x;
-			temp_point_left.y = msgLeft.acceleration.linear.y;
-			temp_point_left.z = msgLeft.acceleration.linear.z;
+			temp_point_left.x = msg.acceleration[0].linear.x;
+			temp_point_left.y = msg.acceleration[0].linear.y;
+			temp_point_left.z = msg.acceleration[0].linear.z;
 			markerLeft.points.push_back(temp_point_left);  //end of the arrow
 			markerLeft.scale.x = 0.1;
 			markerLeft.scale.y = 0.2;
@@ -1023,9 +1019,9 @@ int main(int argc, char* argv[])
 			markerRight.action = visualization_msgs::Marker::ADD; 
 			temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
 			markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
-			temp_point_right.x = msgRight.acceleration.linear.x;
-			temp_point_right.y = msgRight.acceleration.linear.y;
-			temp_point_right.z = msgRight.acceleration.linear.z;
+			temp_point_right.x = msg.acceleration[0].linear.x;
+			temp_point_right.y = msg.acceleration[0].linear.y;
+			temp_point_right.z = msg.acceleration[0].linear.z;
 			markerRight.points.push_back(temp_point_right);  //end of the arrow
 			markerRight.scale.x = 0.1;
 			markerRight.scale.y = 0.2;
@@ -1077,15 +1073,13 @@ int main(int argc, char* argv[])
 		
 		if (cycles % PUB_PERIOD_MS == 0)
 		{
-			std_msgs::UInt8 msg_gait_state;
-			msg_gait_state.data = 0;
-			msg_gait_state.data |= 
+			msg.gait_state = 0;
+			msg.gait_state |= 
 				(GaitPhaseDetectionL.GaitState[2] << 3) | // left heel
 				(GaitPhaseDetectionL.GaitState[3] << 2) | // left toe
 				(GaitPhaseDetectionR.GaitState[2] << 1) | // right heel
 				(GaitPhaseDetectionR.GaitState[3] << 0);  // right toe
-
-			pub_gait_state.publish(msg_gait_state);
+			pub_sport_sole.publish(msg);
 		}
 
 		createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,Odroid_Trigger,currenttime,SyncPacket.Ext_Trigger,GaitPhaseDetectionL.GaitState,GaitPhaseDetectionR.GaitState);

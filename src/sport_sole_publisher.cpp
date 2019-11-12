@@ -1019,9 +1019,9 @@ int main(int argc, char* argv[])
 			markerRight.action = visualization_msgs::Marker::ADD; 
 			temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
 			markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
-			temp_point_right.x = msg.acceleration[0].linear.x;
-			temp_point_right.y = msg.acceleration[0].linear.y;
-			temp_point_right.z = msg.acceleration[0].linear.z;
+			temp_point_right.x = msg.acceleration[1].linear.x;
+			temp_point_right.y = msg.acceleration[1].linear.y;
+			temp_point_right.z = msg.acceleration[1].linear.z;
 			markerRight.points.push_back(temp_point_right);  //end of the arrow
 			markerRight.scale.x = 0.1;
 			markerRight.scale.y = 0.2;

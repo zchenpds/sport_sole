@@ -745,7 +745,28 @@ int main(int argc, char* argv[])
 	uint32_t tCycle;
 	uint64_t cycleMicrosTime=US_CYCLES;
 	uint32_t cycles=0;
+
+	// Gravitational acceleration in Hoboken.
+	const double GRAVITATIONAL_ACCELERATION = 9.81772;
 	
+	ros::Time ros_stamp_base;
+	ros::Duration transmission_delay(0.002);
+	uint32_t sport_sole_l_stamp_base;
+	uint64_t sport_sole_r_stamp_base;
+
+	auto getRosTimestampL = [&ros_stamp_base, &dataPacketL, &sport_sole_l_stamp_base]()->ros::Time{
+		return ros::Time::now();
+		if (!sport_sole_l_stamp_base) 
+			sport_sole_l_stamp_base = dataPacketL.timestamp;
+		return ros_stamp_base + ros::Duration((dataPacketL.timestamp - sport_sole_l_stamp_base) * 1e-6);
+	};
+
+	auto getRosTimestampR = [&ros_stamp_base, &dataPacketR, &sport_sole_r_stamp_base]()->ros::Time{
+		return ros::Time::now();
+		if (!sport_sole_r_stamp_base) 
+			sport_sole_r_stamp_base = dataPacketR.timestamp;
+		return ros_stamp_base + ros::Duration((dataPacketR.timestamp - sport_sole_r_stamp_base) * 1e-6);
+	};
 	
 	char strDate[N_STR];
 	char strFile[N_STR];
@@ -911,6 +932,10 @@ int main(int argc, char* argv[])
 		dataMutex.lock();
 		cond=(PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0); //&& (PDShoeR.packetReceived>0);
 		dataMutex.unlock();
+
+		// Set ROS stamp base
+		if (cond)
+			ros_stamp_base = ros::Time::now() - transmission_delay;
 		
 		usleep(500);
 	}
@@ -940,16 +965,25 @@ int main(int argc, char* argv[])
 		
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
+
+		// // Set odroid stamp base
+		// if (cycles == 0)
+		// {
+		// 	sport_sole_l_stamp_base = dataPacketL.Odroid_Timestamp;
+		// 	sport_sole_r_stamp_base = dataPacketR.Odroid_Timestamp;
+		// }
 			
 		sport_sole::SportSole msg;
 		if (cycles % PUB_PERIOD_MS == 0)
 		{
 			
-			// TODO: Populate the messages for left and right shoes with dataPacketL and dataPacketR. Then publish them.
-			msg.header.stamp = ros::Time::now();
-			msg.acceleration[0].linear.x = dataPacketL.ax1;
-			msg.acceleration[0].linear.y = dataPacketL.ay1; 
-			msg.acceleration[0].linear.z = dataPacketL.az1;
+			// Populate the SportSole message
+			//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
+			//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
+			msg.header.stamp = getRosTimestampL();
+			msg.acceleration[0].linear.x = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.y = dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.z = dataPacketL.az1 * GRAVITATIONAL_ACCELERATION;
 			tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
 			tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
 			tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
@@ -967,9 +1001,9 @@ int main(int argc, char* argv[])
 			//msgLeft_pub.publish(msgLeft);
 
 
-			msg.acceleration[1].linear.x = dataPacketR.ax1;
-			msg.acceleration[1].linear.y = dataPacketR.ay1; 
-			msg.acceleration[1].linear.z = dataPacketR.az1;
+			msg.acceleration[1].linear.x = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[1].linear.y = dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION; 
+			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION;
 			tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
 			tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
 			tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
@@ -990,7 +1024,7 @@ int main(int argc, char* argv[])
 			visualization_msgs::Marker markerLeft, markerRight;
 			geometry_msgs:: Point temp_point_left, temp_point_right; 
 			markerLeft.header.frame_id = "shoe_left";
-			markerLeft.header.stamp = ros::Time::now();
+			markerLeft.header.stamp = getRosTimestampL();
 			markerLeft.ns = "~";
 			markerLeft.id = 0;
 			markerLeft.type = visualization_msgs::Marker::ARROW;
@@ -1012,7 +1046,7 @@ int main(int argc, char* argv[])
 
 
 			markerRight.header.frame_id = "shoe_right";
-			markerRight.header.stamp = ros::Time::now();
+			markerRight.header.stamp = getRosTimestampR();
 			markerRight.ns = "~";
 			markerRight.id = 1;
 			markerRight.type = visualization_msgs::Marker::ARROW;
@@ -1071,7 +1105,8 @@ int main(int argc, char* argv[])
 		GaitPhaseDetectionL.update(dataPacketRawL.p7+dataPacketRawL.p8,dataPacketRawL.p1+dataPacketRawL.p2);
 		GaitPhaseDetectionR.update(dataPacketRawR.p7+dataPacketRawR.p8,dataPacketRawR.p1+dataPacketRawR.p2);
 		
-		if (cycles % PUB_PERIOD_MS == 0)
+		// Ignore the first 4 sec of data because the gravity was not removed yet.
+		if (cycles % PUB_PERIOD_MS == 0 && (getRosTimestampL() - ros_stamp_base).toSec() > 4.5)
 		{
 			msg.gait_state = 0;
 			msg.gait_state |= 

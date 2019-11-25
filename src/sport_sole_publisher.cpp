@@ -754,15 +754,17 @@ int main(int argc, char* argv[])
 	uint32_t sport_sole_l_stamp_base;
 	uint64_t sport_sole_r_stamp_base;
 
-	auto getRosTimestampL = [&ros_stamp_base, &dataPacketL, &sport_sole_l_stamp_base]()->ros::Time{
-		return ros::Time::now();
+	ros::Duration delay(0.00);
+
+	auto getRosTimestampL = [&ros_stamp_base, &dataPacketL, &sport_sole_l_stamp_base, &delay]()->ros::Time{
+		return ros::Time::now() - delay;
 		if (!sport_sole_l_stamp_base) 
 			sport_sole_l_stamp_base = dataPacketL.timestamp;
 		return ros_stamp_base + ros::Duration((dataPacketL.timestamp - sport_sole_l_stamp_base) * 1e-6);
 	};
 
-	auto getRosTimestampR = [&ros_stamp_base, &dataPacketR, &sport_sole_r_stamp_base]()->ros::Time{
-		return ros::Time::now();
+	auto getRosTimestampR = [&ros_stamp_base, &dataPacketR, &sport_sole_r_stamp_base, &delay]()->ros::Time{
+		return ros::Time::now() - delay;
 		if (!sport_sole_r_stamp_base) 
 			sport_sole_r_stamp_base = dataPacketR.timestamp;
 		return ros_stamp_base + ros::Duration((dataPacketR.timestamp - sport_sole_r_stamp_base) * 1e-6);
@@ -981,13 +983,13 @@ int main(int argc, char* argv[])
 			//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
 			//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
 			msg.header.stamp = getRosTimestampL();
-			msg.acceleration[0].linear.x = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
-			msg.acceleration[0].linear.y = dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.x = -dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.y = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[0].linear.z = dataPacketL.az1 * GRAVITATIONAL_ACCELERATION;
 			tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
-			tf::Quaternion q2_left(tf::Vector3(-1, 0, 0), dataPacketL.pitch1);
-			tf::Quaternion q3_left(tf::Vector3(0, 1, 0), dataPacketL.roll1);
-			tf::Quaternion q_left = q1_left * q2_left * q3_left;
+			tf::Quaternion q2_left(tf::Vector3(0, 1, 0), dataPacketL.pitch1);
+			tf::Quaternion q3_left(tf::Vector3(1, 0, 0), dataPacketL.roll1);
+			tf::Quaternion q_left = q1_left * q3_left * q2_left;
 			tf::quaternionTFToMsg(q_left, msg.quaternion[0]);
 			int p_index = 0;
 			msg.pressures[p_index++] = dataPacketL.p1; 
@@ -1001,13 +1003,13 @@ int main(int argc, char* argv[])
 			//msgLeft_pub.publish(msgLeft);
 
 
-			msg.acceleration[1].linear.x = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION;
-			msg.acceleration[1].linear.y = dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION; 
-			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[1].linear.x = -dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[1].linear.y = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION; 
+			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION + 0.2750;
 			tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
-			tf::Quaternion q2_right(tf::Vector3(-1, 0, 0), dataPacketR.pitch1);
-			tf::Quaternion q3_right(tf::Vector3(0, 1, 0), dataPacketR.roll1);
-			tf::Quaternion q_right = q1_right * q2_right * q3_right;
+			tf::Quaternion q2_right(tf::Vector3(0, 1, 0), dataPacketR.pitch1);
+			tf::Quaternion q3_right(tf::Vector3(1, 0, 0), dataPacketR.roll1);
+			tf::Quaternion q_right = q1_right * q3_right * q2_right;
 			tf::quaternionTFToMsg(q_right, msg.quaternion[1]);
 			msg.pressures[p_index++] = dataPacketR.p1; 
 			msg.pressures[p_index++] = dataPacketR.p2; 

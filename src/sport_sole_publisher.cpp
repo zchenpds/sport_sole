@@ -41,8 +41,8 @@
 #define US_CYCLES 1000 //[us]
 
 #define BUFFER 4096
-#define PACKET_LENGTH_WIFI  51//47//45
-#define PACKET_LENGTH_LOG   114
+#define PACKET_LENGTH_WIFI  77
+#define PACKET_LENGTH_LOG   166
 #define PACKET_LENGTH_PD    24//22
 #define PACKET_LENGTH_LED    8
 #define PACKET_LENGTH_TIME   16//8
@@ -81,7 +81,10 @@ struct structDataPacketPureData
 	float yaw1,pitch1,roll1;
 	float ax1,ay1,az1;
 	
-	
+	float qw, qx, qy, qz;
+	float wx, wy, wz;
+	float r_ax, r_ay, r_az;
+	float mx, my, mz;
 
 	uint16_t p1,p2,p3,p4,p5,p6,p7,p8;
 	uint64_t Odroid_Timestamp;
@@ -98,6 +101,10 @@ struct structDataPacketPureDataRAW
 	int16_t yaw1,pitch1,roll1;
 	int16_t ax1,ay1,az1;
 	
+	int16_t qw, qx, qy, qz;
+	int16_t wx, wy, wz;
+	int16_t r_ax, r_ay, r_az;
+	int16_t mx, my, mz;
 
 	uint16_t p1,p2,p3,p4,p5,p6,p7,p8;
 	uint64_t Odroid_Timestamp;
@@ -114,7 +121,10 @@ struct structDataPacket
 	float yaw1,pitch1,roll1;
 	float ax1,ay1,az1;
 	
-	
+	float qw, qx, qy, qz;
+	float wx, wy, wz;
+	float r_ax, r_ay, r_az;
+	float mx, my, mz;
 
 	uint16_t p1,p2,p3,p4,p5,p6,p7,p8;
 	uint64_t Odroid_Timestamp;
@@ -226,6 +236,23 @@ inline void reconstructStruct(structDataPacketPureDataRAW dataPacketRAW, structD
 	dataPacket.ay1=((float)dataPacketRAW.ay1)/FACTOR_SCALE_ACCELERATION;
 	dataPacket.az1=((float)dataPacketRAW.az1)/FACTOR_SCALE_ACCELERATION;
 
+	dataPacket.qw = ((float)dataPacketRAW.qw)/FACTOR_SCALE_ANGLE;
+	dataPacket.qx = ((float)dataPacketRAW.qx)/FACTOR_SCALE_ANGLE;
+	dataPacket.qy = ((float)dataPacketRAW.qy)/FACTOR_SCALE_ANGLE;
+	dataPacket.qz = ((float)dataPacketRAW.qz)/FACTOR_SCALE_ANGLE;
+
+	dataPacket.wx = dataPacketRAW.wx / 900.0f;
+	dataPacket.wy = dataPacketRAW.wy / 900.0f;
+	dataPacket.wz = dataPacketRAW.wz / 900.0f;
+
+	dataPacket.r_ax = dataPacketRAW.r_ax / 1000.0f;
+	dataPacket.r_ay = dataPacketRAW.r_ay / 1000.0f;
+	dataPacket.r_az = dataPacketRAW.r_az / 1000.0f;
+
+	dataPacket.mx = dataPacketRAW.mx / 1000.0f;
+	dataPacket.my = dataPacketRAW.my / 1000.0f;
+	dataPacket.mz = dataPacketRAW.mz / 1000.0f;
+	
 	dataPacket.p1=dataPacketRAW.p1;
 	dataPacket.p2=dataPacketRAW.p2;
 	dataPacket.p3=dataPacketRAW.p3;
@@ -301,64 +328,125 @@ inline void reconstructStructPureDataRAW(uint8_t* recvbuffer,structDataPacketPur
 	pointer[0]=recvbuffer[18];
 
 	/////////////////////////////////////////////
+	// Extra data field
 
+	const size_t idx0 = 19;
+	size_t idx = idx0;
+
+	// quaternion
+	pointer=(uint8_t*)&dataPacket.qw;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+	
+	pointer=(uint8_t*)&dataPacket.qx;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.qy;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.qz;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	// raw gyro
+	pointer=(uint8_t*)&dataPacket.wx;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.wy;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.wz;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	// raw acc
+	pointer=(uint8_t*)&dataPacket.r_ax;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.r_ay;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.r_az;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	// raw magnetometer
+	pointer=(uint8_t*)&dataPacket.mx;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.my;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	pointer=(uint8_t*)&dataPacket.mz;
+	pointer[1]=recvbuffer[idx++];
+	pointer[0]=recvbuffer[idx++];
+
+	size_t idx_cnt = idx - idx0; // Must be 26
 
 	/////////////////////////////////////////////
 
 	pointer=(uint8_t*)&dataPacket.p1;
-	pointer[1]=recvbuffer[19];
-	pointer[0]=recvbuffer[20];
+	pointer[1]=recvbuffer[idx_cnt + 19];
+	pointer[0]=recvbuffer[idx_cnt + 20];
 
 	pointer=(uint8_t*)&dataPacket.p2;
-	pointer[1]=recvbuffer[21];
-	pointer[0]=recvbuffer[22];
+	pointer[1]=recvbuffer[idx_cnt + 21];
+	pointer[0]=recvbuffer[idx_cnt + 22];
 
 	pointer=(uint8_t*)&dataPacket.p3;
-	pointer[1]=recvbuffer[23];
-	pointer[0]=recvbuffer[24];
+	pointer[1]=recvbuffer[idx_cnt + 23];
+	pointer[0]=recvbuffer[idx_cnt + 24];
 
 	pointer=(uint8_t*)&dataPacket.p4;
-	pointer[1]=recvbuffer[25];
-	pointer[0]=recvbuffer[26];
+	pointer[1]=recvbuffer[idx_cnt + 25];
+	pointer[0]=recvbuffer[idx_cnt + 26];
 
 	pointer=(uint8_t*)&dataPacket.p5;
-	pointer[1]=recvbuffer[27];
-	pointer[0]=recvbuffer[28];
+	pointer[1]=recvbuffer[idx_cnt + 27];
+	pointer[0]=recvbuffer[idx_cnt + 28];
 
 	pointer=(uint8_t*)&dataPacket.p6;
-	pointer[1]=recvbuffer[29];
-	pointer[0]=recvbuffer[30];
+	pointer[1]=recvbuffer[idx_cnt + 29];
+	pointer[0]=recvbuffer[idx_cnt + 30];
 
 	pointer=(uint8_t*)&dataPacket.p7;
-	pointer[1]=recvbuffer[31];
-	pointer[0]=recvbuffer[32];
+	pointer[1]=recvbuffer[idx_cnt + 31];
+	pointer[0]=recvbuffer[idx_cnt + 32];
 
 	pointer=(uint8_t*)&dataPacket.p8;
-	pointer[1]=recvbuffer[33];
-	pointer[0]=recvbuffer[34];
+	pointer[1]=recvbuffer[idx_cnt + 33];
+	pointer[0]=recvbuffer[idx_cnt + 34];
 	/////////////////////////////////////////////
 
     //Timestamp_Odroid
 	pointer=(uint8_t*)&dataPacket.Odroid_Timestamp;
-	pointer[7]=recvbuffer[35];
-	pointer[6]=recvbuffer[36];
-	pointer[5]=recvbuffer[37];
-	pointer[4]=recvbuffer[38];
-	pointer[3]=recvbuffer[49];
-	pointer[2]=recvbuffer[40];
-	pointer[1]=recvbuffer[41];
-	pointer[0]=recvbuffer[42];
+	pointer[7]=recvbuffer[idx_cnt + 35];
+	pointer[6]=recvbuffer[idx_cnt + 36];
+	pointer[5]=recvbuffer[idx_cnt + 37];
+	pointer[4]=recvbuffer[idx_cnt + 38];
+	pointer[3]=recvbuffer[idx_cnt + 49];
+	pointer[2]=recvbuffer[idx_cnt + 40];
+	pointer[1]=recvbuffer[idx_cnt + 41];
+	pointer[0]=recvbuffer[idx_cnt + 42];
 
 	// trigger
 	pointer=(uint8_t*)&dataPacket.Odroid_Trigger;
-	pointer[0]=recvbuffer[43];
+	pointer[0]=recvbuffer[idx_cnt + 43];
  
     // timestamp2 
 	pointer=(uint8_t*)&dataPacket.timestamp2;
-	pointer[3]=recvbuffer[44];
-	pointer[2]=recvbuffer[45];
-	pointer[1]=recvbuffer[46];
-	pointer[0]=recvbuffer[47];	
+	pointer[3]=recvbuffer[idx_cnt + 44];
+	pointer[2]=recvbuffer[idx_cnt + 45];
+	pointer[1]=recvbuffer[idx_cnt + 46];
+	pointer[0]=recvbuffer[idx_cnt + 47];	// 73
     // //currenttime
 
 
@@ -418,7 +506,8 @@ struct structPressSettings
 
 inline bool checkPacket(uint8_t *buffer,int ret)
 {
-	return (buffer[0]==0x07 && buffer[1]==0x08 && buffer[2]==0x09 && buffer[48]==0xA && buffer[49]==0xB && buffer[50]==0xC && ret==PACKET_LENGTH_WIFI);
+	return (buffer[0]==0x07 && buffer[1]==0x08 && buffer[2]==0x09 && 
+		buffer[PACKET_LENGTH_WIFI - 3]==0xA && buffer[PACKET_LENGTH_WIFI - 2]==0xB && buffer[PACKET_LENGTH_WIFI - 1]==0xC && ret==PACKET_LENGTH_WIFI);
 };
 
 inline bool checkResetPacket(uint8_t *buffer,int ret)
@@ -590,10 +679,10 @@ void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,u
 	buffer_out[1]=0x02;
 	buffer_out[2]=0x03;
 
-	for(int i=0;i<45;i++)
+	for(int i=0;i<71;i++)
 	{
 		buffer_out[i+3]=buffer_01[i+3];
-		buffer_out[i+48]=buffer_02[i+3];
+		buffer_out[i+74]=buffer_02[i+3];
 	}
 
 
@@ -601,36 +690,37 @@ void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,u
 
 
 	//current time
+	const size_t idx_cnt_double = 52;
 	pointer=(uint8_t*)&currenttime;
-	buffer_out[93]=pointer[7];
-	buffer_out[94]=pointer[6];
-	buffer_out[95]=pointer[5];
-	buffer_out[96]=pointer[4];
-	buffer_out[97]=pointer[3];
-	buffer_out[98]=pointer[2];
-	buffer_out[99]=pointer[1];
-	buffer_out[100]=pointer[0];
+	buffer_out[idx_cnt_double + 93]=pointer[7];
+	buffer_out[idx_cnt_double + 94]=pointer[6];
+	buffer_out[idx_cnt_double + 95]=pointer[5];
+	buffer_out[idx_cnt_double + 96]=pointer[4];
+	buffer_out[idx_cnt_double + 97]=pointer[3];
+	buffer_out[idx_cnt_double + 98]=pointer[2];
+	buffer_out[idx_cnt_double + 99]=pointer[1];
+	buffer_out[idx_cnt_double + 100]=pointer[0];
 
-    buffer_out[101]=Odroid_Trigger;
+    buffer_out[idx_cnt_double + 101]=Odroid_Trigger;
 	
-	buffer_out[102]=Ext_Trigger;
+	buffer_out[idx_cnt_double + 102]=Ext_Trigger;
 
 	// Left
-	buffer_out[103]= GaitStateL[0];
-    buffer_out[104]= GaitStateL[1];
-	buffer_out[105]= GaitStateL[2];
-    buffer_out[106]= GaitStateL[3];
+	buffer_out[idx_cnt_double + 103]= GaitStateL[0];
+    buffer_out[idx_cnt_double + 104]= GaitStateL[1];
+	buffer_out[idx_cnt_double + 105]= GaitStateL[2];
+    buffer_out[idx_cnt_double + 106]= GaitStateL[3];
 	// Right
-	buffer_out[107]= GaitStateR[0];
-    buffer_out[108]= GaitStateR[1];
-	buffer_out[109]= GaitStateR[2];
-    buffer_out[110]= GaitStateR[3];		
+	buffer_out[idx_cnt_double + 107]= GaitStateR[0];
+    buffer_out[idx_cnt_double + 108]= GaitStateR[1];
+	buffer_out[idx_cnt_double + 109]= GaitStateR[2];
+    buffer_out[idx_cnt_double + 110]= GaitStateR[3];		
 			
-	buffer_out[111]=0x4;
-	buffer_out[112]=0x5;
-	buffer_out[113]=0x6;
+	buffer_out[idx_cnt_double + 111]=0x4;
+	buffer_out[idx_cnt_double + 112]=0x5;
+	buffer_out[idx_cnt_double + 113]=0x6;
 
-	//buffer_out[47]=trigger;
+	//buffer_out[idx_cnt_double + 47]=trigger;
 }
 
 
@@ -757,14 +847,14 @@ int main(int argc, char* argv[])
 	ros::Duration delay(0.00);
 
 	auto getRosTimestampL = [&ros_stamp_base, &dataPacketL, &sport_sole_l_stamp_base, &delay]()->ros::Time{
-		return ros::Time::now() - delay;
+		//return ros::Time::now() - delay;
 		if (!sport_sole_l_stamp_base) 
 			sport_sole_l_stamp_base = dataPacketL.timestamp;
 		return ros_stamp_base + ros::Duration((dataPacketL.timestamp - sport_sole_l_stamp_base) * 1e-6);
 	};
 
 	auto getRosTimestampR = [&ros_stamp_base, &dataPacketR, &sport_sole_r_stamp_base, &delay]()->ros::Time{
-		return ros::Time::now() - delay;
+		//return ros::Time::now() - delay;
 		if (!sport_sole_r_stamp_base) 
 			sport_sole_r_stamp_base = dataPacketR.timestamp;
 		return ros_stamp_base + ros::Duration((dataPacketR.timestamp - sport_sole_r_stamp_base) * 1e-6);
@@ -978,6 +1068,26 @@ int main(int argc, char* argv[])
 		sport_sole::SportSole msg;
 		if (cycles % PUB_PERIOD_MS == 0)
 		{
+			// Define the function to get the quaternion
+			auto assignQuaternion = [](const structDataPacketPureData & data_packet, geometry_msgs::Quaternion & q_msg) {
+				#if 0
+					// Use Euler angles
+					tf::Quaternion q1(tf::Vector3(0, 0, 1), data_packet.yaw1);
+					tf::Quaternion q2(tf::Vector3(0, 1, 0), data_packet.pitch1);
+					tf::Quaternion q3(tf::Vector3(1, 0, 0), data_packet.roll1);
+					tf::Quaternion q = q1 * q3 * q2;
+					tf::quaternionTFToMsg(q, q_msg);
+				#else
+					// User quaternion
+					tf::Quaternion q(-data_packet.qy, data_packet.qx, data_packet.qz, data_packet.qw);
+					static const tf::Quaternion q2{{1, 0, 0}, M_PI};
+					q = q * q2;
+					q_msg.w = q.w();
+					q_msg.x = q.x();
+					q_msg.y = q.y();
+					q_msg.z = q.z();
+				#endif
+			};
 			
 			// Populate the SportSole message
 			//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
@@ -986,11 +1096,7 @@ int main(int argc, char* argv[])
 			msg.acceleration[0].linear.x = -dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[0].linear.y = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[0].linear.z = dataPacketL.az1 * GRAVITATIONAL_ACCELERATION;
-			tf::Quaternion q1_left(tf::Vector3(0, 0, 1), dataPacketL.yaw1);
-			tf::Quaternion q2_left(tf::Vector3(0, 1, 0), dataPacketL.pitch1);
-			tf::Quaternion q3_left(tf::Vector3(1, 0, 0), dataPacketL.roll1);
-			tf::Quaternion q_left = q1_left * q3_left * q2_left;
-			tf::quaternionTFToMsg(q_left, msg.quaternion[0]);
+			assignQuaternion(dataPacketL, msg.quaternion[0]);
 			int p_index = 0;
 			msg.pressures[p_index++] = dataPacketL.p1; 
 			msg.pressures[p_index++] = dataPacketL.p2; 
@@ -1005,12 +1111,8 @@ int main(int argc, char* argv[])
 
 			msg.acceleration[1].linear.x = -dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[1].linear.y = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION; 
-			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION + 0.2750;
-			tf::Quaternion q1_right(tf::Vector3(0, 0, 1), dataPacketR.yaw1);
-			tf::Quaternion q2_right(tf::Vector3(0, 1, 0), dataPacketR.pitch1);
-			tf::Quaternion q3_right(tf::Vector3(1, 0, 0), dataPacketR.roll1);
-			tf::Quaternion q_right = q1_right * q3_right * q2_right;
-			tf::quaternionTFToMsg(q_right, msg.quaternion[1]);
+			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION;
+			assignQuaternion(dataPacketR, msg.quaternion[1]);
 			msg.pressures[p_index++] = dataPacketR.p1; 
 			msg.pressures[p_index++] = dataPacketR.p2; 
 			msg.pressures[p_index++] = dataPacketR.p3;
@@ -1025,10 +1127,11 @@ int main(int argc, char* argv[])
 			// Populate data and use Publisher accel_left_pub to represent the acceleration
 			visualization_msgs::Marker markerLeft, markerRight;
 			geometry_msgs:: Point temp_point_left, temp_point_right; 
-			markerLeft.header.frame_id = "shoe_left";
+			markerLeft.header.frame_id = "map";
 			markerLeft.header.stamp = getRosTimestampL();
 			markerLeft.ns = "~";
-			markerLeft.id = 0;
+			markerLeft.id = 0; 
+			markerLeft.lifetime = ros::Duration(1.0);
 			markerLeft.type = visualization_msgs::Marker::ARROW;
 			markerLeft.action = visualization_msgs::Marker::ADD; 
 			temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
@@ -1047,10 +1150,11 @@ int main(int argc, char* argv[])
 			accel_left_pub.publish(markerLeft);
 
 
-			markerRight.header.frame_id = "shoe_right";
+			markerRight.header.frame_id = "map";
 			markerRight.header.stamp = getRosTimestampR();
 			markerRight.ns = "~";
 			markerRight.id = 1;
+			markerLeft.lifetime = ros::Duration(1.0);
 			markerRight.type = visualization_msgs::Marker::ARROW;
 			markerRight.action = visualization_msgs::Marker::ADD; 
 			temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
@@ -1067,18 +1171,6 @@ int main(int argc, char* argv[])
 			markerRight.color.g = 0.0;
 			markerRight.color.b = 0.0;
 			accel_right_pub.publish(markerRight);
-/*
-			//incorporates rviz to visualize left shoe orientation (RPY)
-			static tf::TransformBroadcaster br_left, br_right;
-			tf::Transform transformL, transformR;
-			transformL.setOrigin( tf::Vector3(0.75, 0, 0) );
-			transformL.setRotation(q_left);
-			br_left.sendTransform(tf::StampedTransform(transformL, ros::Time::now(), "map", "shoe_left"));
-
-			transformR.setOrigin( tf::Vector3(-0.75, 0, 0) );
-			transformR.setRotation(q_right);
-			br_right.sendTransform(tf::StampedTransform(transformR, ros::Time::now(), "map", "shoe_right"));
-			*/
 		}
 
 		// Send data to PD

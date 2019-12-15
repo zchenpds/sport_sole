@@ -33,6 +33,8 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/Point.h>
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8.h>
@@ -73,6 +75,13 @@ using namespace std;
 
 mutex dataMutex;
 bool is_running = true;
+
+// enum left or right
+enum left_right_t {
+	LEFT=0,
+	RIGHT,
+	LEFT_RIGHT
+};
 
 struct structDataPacketPureData 
 {
@@ -769,14 +778,14 @@ int main(int argc, char* argv[])
 	ros::NodeHandle n(std::string("~"));
 
 
-	//publish msgs
-	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 0) ;
+	//publish msg
+	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 10) ;
 
+	//publisher created here for visualizing shoe's acceleration data and orientation
+	ros::Publisher pub_markers = n.advertise<visualization_msgs::MarkerArray> ("sport_sole_markers", 1);
 
-	//publisher created here for visualizing shoe's acceleration data
-	ros::Publisher accel_left_pub = n.advertise<visualization_msgs::Marker> ("accel_left", 0);
-	ros::Publisher accel_right_pub = n.advertise<visualization_msgs::Marker> ("accel_right", 0);
-
+	// Transform broadcaster
+	tf2_ros::TransformBroadcaster tf_broadcaster;
 	
 	// TODO: The value of the variable strSession is obtained from argv here. 
 	// We want to modify the way the argument is parsed. 
@@ -1106,7 +1115,6 @@ int main(int argc, char* argv[])
 			msg.pressures[p_index++] = dataPacketL.p6;
 			msg.pressures[p_index++] = dataPacketL.p7;
 			msg.pressures[p_index++] = dataPacketL.p8;
-			//msgLeft_pub.publish(msgLeft);
 
 
 			msg.acceleration[1].linear.x = -dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION;
@@ -1121,56 +1129,99 @@ int main(int argc, char* argv[])
 			msg.pressures[p_index++] = dataPacketR.p6;
 			msg.pressures[p_index++] = dataPacketR.p7;
 			msg.pressures[p_index++] = dataPacketR.p8;
-			//msgRight_pub.publish(msgRight);
 			
 
-			// Populate data and use Publisher accel_left_pub to represent the acceleration
-			visualization_msgs::Marker markerLeft, markerRight;
-			geometry_msgs:: Point temp_point_left, temp_point_right; 
-			markerLeft.header.frame_id = "map";
-			markerLeft.header.stamp = getRosTimestampL();
-			markerLeft.ns = "~";
-			markerLeft.id = 0; 
-			markerLeft.lifetime = ros::Duration(1.0);
-			markerLeft.type = visualization_msgs::Marker::ARROW;
-			markerLeft.action = visualization_msgs::Marker::ADD; 
-			temp_point_left.x = temp_point_left.y = temp_point_left.z = 0;  //origin of arrow
-			markerLeft.points.push_back(temp_point_left);  //creates the start of the arrow
-			temp_point_left.x = msg.acceleration[0].linear.x;
-			temp_point_left.y = msg.acceleration[0].linear.y;
-			temp_point_left.z = msg.acceleration[0].linear.z;
-			markerLeft.points.push_back(temp_point_left);  //end of the arrow
-			markerLeft.scale.x = 0.1;
-			markerLeft.scale.y = 0.2;
-			markerLeft.scale.z = 0.3;
-			markerLeft.color.a = 1.0; 
-			markerLeft.color.r = 1.0;
-			markerLeft.color.g = 0.0;
-			markerLeft.color.b = 0.0;
-			accel_left_pub.publish(markerLeft);
+			// Define the message for pub_marker
+			visualization_msgs::MarkerArrayPtr marker_array_ptr(new visualization_msgs::MarkerArray);
+			
+			// Tail of the arrows
+			geometry_msgs:: Point arrow_tails[LEFT_RIGHT];
+			arrow_tails[LEFT].x = 0.0;
+			arrow_tails[LEFT].y = 0.5;
+			arrow_tails[LEFT].z = 0.0;
+			arrow_tails[RIGHT].x = 0.0;
+			arrow_tails[RIGHT].y = -0.5;
+			arrow_tails[RIGHT].z = 0.0; 
 
+			// Draw arrows to represent acceleration
+			for (size_t lr: {LEFT, RIGHT})
+			{
+				visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
+			
+				marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+				marker_ptr->header.frame_id = "map";
+				marker_ptr->ns = "~";
+				marker_ptr->id = lr; 
+				marker_ptr->lifetime = ros::Duration(1.0);
+				marker_ptr->type = visualization_msgs::Marker::ARROW;
+				marker_ptr->action = visualization_msgs::Marker::ADD; 
 
-			markerRight.header.frame_id = "map";
-			markerRight.header.stamp = getRosTimestampR();
-			markerRight.ns = "~";
-			markerRight.id = 1;
-			markerLeft.lifetime = ros::Duration(1.0);
-			markerRight.type = visualization_msgs::Marker::ARROW;
-			markerRight.action = visualization_msgs::Marker::ADD; 
-			temp_point_right.x = temp_point_right.y = temp_point_right.z = 0;  //origin of arrow
-			markerRight.points.push_back(temp_point_right);  //creates the start of the arrow
-			temp_point_right.x = msg.acceleration[1].linear.x;
-			temp_point_right.y = msg.acceleration[1].linear.y;
-			temp_point_right.z = msg.acceleration[1].linear.z;
-			markerRight.points.push_back(temp_point_right);  //end of the arrow
-			markerRight.scale.x = 0.1;
-			markerRight.scale.y = 0.2;
-			markerRight.scale.z = 0.3;
-			markerRight.color.a = 1.0; 
-			markerRight.color.r = 1.0;
-			markerRight.color.g = 0.0;
-			markerRight.color.b = 0.0;
-			accel_right_pub.publish(markerRight);
+				
+				marker_ptr->points.push_back(arrow_tails[lr]);
+
+				// Head of the arrow
+				geometry_msgs::Point arrow_head;
+				const double arrow_scale_factor = 0.2;
+				arrow_head.x = arrow_tails[lr].x + msg.acceleration[lr].linear.x * arrow_scale_factor;
+				arrow_head.y = arrow_tails[lr].y + msg.acceleration[lr].linear.y * arrow_scale_factor;
+				arrow_head.z = arrow_tails[lr].z + msg.acceleration[lr].linear.z * arrow_scale_factor;
+				marker_ptr->points.push_back(arrow_head); 
+
+				marker_ptr->scale.x = 0.05;
+				marker_ptr->scale.y = 0.1;
+				marker_ptr->scale.z = 0.2;
+				marker_ptr->color.a = 1.0; 
+				marker_ptr->color.r = 1.0;
+				marker_ptr->color.g = 0.0;
+				marker_ptr->color.b = 0.0;
+				marker_array_ptr->markers.push_back(*marker_ptr);
+			}
+
+			// Draw a rectangular prism to represent orientation
+			for (size_t lr: {LEFT, RIGHT})
+			{
+				visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
+				
+				marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+				marker_ptr->header.frame_id = "map";
+				marker_ptr->lifetime = ros::Duration(0.13);
+				marker_ptr->ns = n.getNamespace();
+				marker_ptr->type = visualization_msgs::Marker::CUBE;
+				marker_ptr->id = lr + 2;
+
+				marker_ptr->pose.position = arrow_tails[lr];
+
+				// 
+				marker_ptr->pose.orientation = msg.quaternion[lr];
+
+				marker_ptr->scale.x = 0.3;
+				marker_ptr->scale.y = 0.1;
+				marker_ptr->scale.z = 0.05;
+
+				marker_ptr->color.a = 1.0;
+				marker_ptr->color.r = 1.0;
+				marker_ptr->color.g = 0.0;
+				marker_ptr->color.b = 1.0;
+				marker_array_ptr->markers.push_back(*marker_ptr);
+			}
+
+			// Publish the markers
+			pub_markers.publish(*marker_array_ptr);
+
+			// Broadcast transforms
+			for (size_t lr: {LEFT, RIGHT})
+			{
+				geometry_msgs::TransformStamped msg_tf; 
+				msg_tf.header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+				msg_tf.header.frame_id = "map";
+				msg_tf.child_frame_id = (lr == LEFT) ? "imu_left" : "imu_right";
+				msg_tf.transform.translation.x = arrow_tails[lr].x;
+				msg_tf.transform.translation.y = arrow_tails[lr].y;
+				msg_tf.transform.translation.z = arrow_tails[lr].z;
+				msg_tf.transform.rotation = msg.quaternion[lr];
+				tf_broadcaster.sendTransform(msg_tf);
+			}
+
 		}
 
 		// Send data to PD

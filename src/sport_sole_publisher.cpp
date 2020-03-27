@@ -1102,6 +1102,12 @@ int main(int argc, char* argv[])
 			//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
 			//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
 			msg.header.stamp = getRosTimestampL();
+			msg.raw_acceleration[0].linear.x = -dataPacketL.r_ay * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[0].linear.y = dataPacketL.r_ax * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[0].linear.z = dataPacketL.r_az * GRAVITATIONAL_ACCELERATION;
+			msg.angular_velocity[0].x = -dataPacketL.wy;
+			msg.angular_velocity[0].y = dataPacketL.wx;
+			msg.angular_velocity[0].z = dataPacketL.wz;
 			msg.acceleration[0].linear.x = -dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[0].linear.y = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[0].linear.z = dataPacketL.az1 * GRAVITATIONAL_ACCELERATION;
@@ -1117,6 +1123,12 @@ int main(int argc, char* argv[])
 			msg.pressures[p_index++] = dataPacketL.p8;
 
 
+			msg.raw_acceleration[1].linear.x = -dataPacketR.r_ay * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[1].linear.y = dataPacketR.r_ax * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[1].linear.z = dataPacketR.r_az * GRAVITATIONAL_ACCELERATION;
+			msg.angular_velocity[1].x = -dataPacketR.wy;
+			msg.angular_velocity[1].y = dataPacketR.wx;
+			msg.angular_velocity[1].z = dataPacketR.wz;
 			msg.acceleration[1].linear.x = -dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION;
 			msg.acceleration[1].linear.y = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION; 
 			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION;

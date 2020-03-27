@@ -1,15 +1,27 @@
 <launch>
-  <arg name="session_name" default="abc" />
+  <arg name="session_name" default="sport_sole_test1" />
   <arg name="record_bag" default="false" />
-  <arg name="enable_plot" default="true" />
+  <arg name="plot_acc" default="false" />
+  <arg name="plot_q" default="false" />
+  <arg name="plot_p" default="false" />
+
   <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen">
     <param name="session_name" value="$(arg session_name)" type="str"/>
   </node>
   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find sport_sole)/rviz/accel_orient.rviz"/>
-  <node name="acc_plot" pkg="rqt_plot" type="rqt_plot" if="$(arg enable_plot)"
-        args="/sport_sole_publisher/sport_sole_markers/markers[0]/points[1] /sport_sole_publisher/sport_sole_markers/markers[1]/points[1]" />
+
+  <!-- Plot acceleration -->
+  <node name="acc_plot" pkg="rqt_plot" type="rqt_plot" if="$(arg plot_acc)"
+        args="/sport_sole_publisher/sport_sole/acceleration[0]/linear /sport_sole_publisher/sport_sole/acceleration[1]/linear" />
+  <!-- Plot quaternion -->
+  <node name="q_plot" pkg="rqt_plot" type="rqt_plot" if="$(arg plot_q)"
+        args="/sport_sole_publisher/sport_sole/quaternion[0] /sport_sole_publisher/sport_sole/quaternion[1]" />
+  <!-- Plot pressure -->
+  <node name="p_plot" pkg="rqt_plot" type="rqt_plot" if="$(arg plot_p)"
+        args="/sport_sole_publisher/sport_sole/pressures" />
+
   <node name="rosbag_record_node" pkg="rosbag" type="record" 
-          args="record -o $(find gait_training_robot)/bags/data_sport_sole 
+          args="record -o $(find gait_training_robot)/bags/sport_sole/sport_sole 
                 /sport_sole_publisher/sport_sole_markers /sport_sole_publisher/sport_sole
                 /tf /tf_static" 
           if="$(arg record_bag)"/>

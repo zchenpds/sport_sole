@@ -680,59 +680,6 @@ void threadUDPreceive(structPDShoe* PDShoe)
 }
 
 
-void createLogPacket(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buffer_02,uint8_t Odroid_Trigger,uint64_t currenttime,uint8_t Ext_Trigger,uint8_t* GaitStateL, uint8_t* GaitStateR)
-{
-	uint8_t *pointer;
-	//See PureData Packet {XLS File}
-	buffer_out[0]=0x01;
-	buffer_out[1]=0x02;
-	buffer_out[2]=0x03;
-
-	for(int i=0;i<71;i++)
-	{
-		buffer_out[i+3]=buffer_01[i+3];
-		buffer_out[i+74]=buffer_02[i+3];
-	}
-
-
-	//buffer_out[85]=Odroid_Trigger;
-
-
-	//current time
-	const size_t idx_cnt_double = 52;
-	pointer=(uint8_t*)&currenttime;
-	buffer_out[idx_cnt_double + 93]=pointer[7];
-	buffer_out[idx_cnt_double + 94]=pointer[6];
-	buffer_out[idx_cnt_double + 95]=pointer[5];
-	buffer_out[idx_cnt_double + 96]=pointer[4];
-	buffer_out[idx_cnt_double + 97]=pointer[3];
-	buffer_out[idx_cnt_double + 98]=pointer[2];
-	buffer_out[idx_cnt_double + 99]=pointer[1];
-	buffer_out[idx_cnt_double + 100]=pointer[0];
-
-    buffer_out[idx_cnt_double + 101]=Odroid_Trigger;
-	
-	buffer_out[idx_cnt_double + 102]=Ext_Trigger;
-
-	// Left
-	buffer_out[idx_cnt_double + 103]= GaitStateL[0];
-    buffer_out[idx_cnt_double + 104]= GaitStateL[1];
-	buffer_out[idx_cnt_double + 105]= GaitStateL[2];
-    buffer_out[idx_cnt_double + 106]= GaitStateL[3];
-	// Right
-	buffer_out[idx_cnt_double + 107]= GaitStateR[0];
-    buffer_out[idx_cnt_double + 108]= GaitStateR[1];
-	buffer_out[idx_cnt_double + 109]= GaitStateR[2];
-    buffer_out[idx_cnt_double + 110]= GaitStateR[3];		
-			
-	buffer_out[idx_cnt_double + 111]=0x4;
-	buffer_out[idx_cnt_double + 112]=0x5;
-	buffer_out[idx_cnt_double + 113]=0x6;
-
-	//buffer_out[idx_cnt_double + 47]=trigger;
-}
-
-
 uint64_t getMicrosTimeStamp() 
 {
 	struct timeval tv;
@@ -971,23 +918,6 @@ int main(int argc, char* argv[])
 	uint nPacketLed=0;
 	uint64_t currenttime=0;
 	
-	timer=time(0);
-	tstruct = *localtime(&timer);
-	strftime(strDate, sizeof(strDate), "%Y-%m-%d_%H-%M-%S", &tstruct);
-	sprintf(strFile,"%s/log/%s_%s.dat", getenv("HOME"),strDate,strSession);
-	ROS_INFO("Data will be logged in %s", strFile);
-	FILE * pFile;
-	pFile = fopen (strFile, "wb");
-	if (!pFile)
-	{
-		ROS_ERROR_STREAM("Cannot open file for logging!");
-	}
-	
-#define CYCLES_WRITE 500
-	
-	uint8_t vFileBuffer[CYCLES_WRITE*PACKET_LENGTH_LOG];
-	unsigned int idxFileWrite=0;
-	
 	uint8_t Odroid_Trigger=1;
 	uint8_t sendSportSole=2;
 	FILE * GPIOzero;
@@ -1141,6 +1071,22 @@ int main(int argc, char* argv[])
 			msg.pressures[p_index++] = dataPacketR.p6;
 			msg.pressures[p_index++] = dataPacketR.p7;
 			msg.pressures[p_index++] = dataPacketR.p8;
+
+			// TO-DO
+			GaitPhaseDetectionL.update(dataPacketRawL.p7+dataPacketRawL.p8,dataPacketRawL.p1+dataPacketRawL.p2);
+			GaitPhaseDetectionR.update(dataPacketRawR.p7+dataPacketRawR.p8,dataPacketRawR.p1+dataPacketRawR.p2);
+			
+			// Ignore the first 4 sec of data because the gravity was not removed yet.
+			if ((ros_stamp_curr - ros_stamp_base).toSec() > 4.5)
+			{
+				msg.gait_state = 0;
+				msg.gait_state |= 
+					(GaitPhaseDetectionL.GaitState[2] << 3) | // left heel
+					(GaitPhaseDetectionL.GaitState[3] << 2) | // left toe
+					(GaitPhaseDetectionR.GaitState[2] << 1) | // right heel
+					(GaitPhaseDetectionR.GaitState[3] << 0);  // right toe
+				pub_sport_sole.publish(msg);
+			}
 			
 			// Construct and publish marker array and tfs for visualization
 			if (pub_markers.getNumSubscribers() > 0)
@@ -1239,13 +1185,6 @@ int main(int argc, char* argv[])
 			}
 
 		}
-
-		// Send data to PD
-		if ((cycles%70)==0)
-		{
-			sendto(sockfdGui,bufferLog,sizeof(bufferLog),0,(struct sockaddr *)&addrGui,sizeof(addrGui));
-			swStat.packetGuiSent++;
-		}
 		
 		if ((cycles%1000)==0)
 		{
@@ -1261,39 +1200,6 @@ int main(int argc, char* argv[])
 			//writeGPIO(ledTrigger, GPIOzero, GPIOone);	
 			sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
 			swStat.packetBroadSent++;
-		}
-
-		GaitPhaseDetectionL.update(dataPacketRawL.p7+dataPacketRawL.p8,dataPacketRawL.p1+dataPacketRawL.p2);
-		GaitPhaseDetectionR.update(dataPacketRawR.p7+dataPacketRawR.p8,dataPacketRawR.p1+dataPacketRawR.p2);
-		
-		// Ignore the first 4 sec of data because the gravity was not removed yet.
-		if (cycles % PUB_PERIOD_MS == 0 && (getRosTimestampL() - ros_stamp_base).toSec() > 4.5)
-		{
-			msg.gait_state = 0;
-			msg.gait_state |= 
-				(GaitPhaseDetectionL.GaitState[2] << 3) | // left heel
-				(GaitPhaseDetectionL.GaitState[3] << 2) | // left toe
-				(GaitPhaseDetectionR.GaitState[2] << 1) | // right heel
-				(GaitPhaseDetectionR.GaitState[3] << 0);  // right toe
-			pub_sport_sole.publish(msg);
-		}
-
-		createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,Odroid_Trigger,currenttime,SyncPacket.Ext_Trigger,GaitPhaseDetectionL.GaitState,GaitPhaseDetectionR.GaitState);
-		//createLogPacket(bufferLog,PDShoeL.lastPacket,PDShoeR.lastPacket,precTrigger,(uint8_t)(metrobool),currMode,PressBuff[0],PressBuff[1]);
-		if (idxFileWrite==(CYCLES_WRITE-1))
-		{
-			memcpy(&vFileBuffer[idxFileWrite*PACKET_LENGTH_LOG],&bufferLog,PACKET_LENGTH_LOG);
-			
-			//Write LOG
-			if (pFile)
-				fwrite(&vFileBuffer,CYCLES_WRITE*PACKET_LENGTH_LOG, 1, pFile);
-			
-			idxFileWrite=0;
-		}
-		else
-		{
-			memcpy(&vFileBuffer[idxFileWrite*PACKET_LENGTH_LOG],&bufferLog,PACKET_LENGTH_LOG);
-			idxFileWrite++;
 		}
 		
 		if((cycles%1000)==0)

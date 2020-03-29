@@ -1,13 +1,10 @@
 <launch>
-  <arg name="session_name" default="sport_sole_test1" />
   <arg name="record_bag" default="false" />
   <arg name="plot_acc" default="false" />
   <arg name="plot_q" default="false" />
   <arg name="plot_p" default="false" />
 
-  <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen">
-    <param name="session_name" value="$(arg session_name)" type="str"/>
-  </node>
+  <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen" />
   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find sport_sole)/rviz/accel_orient.rviz"/>
 
   <!-- Plot acceleration -->

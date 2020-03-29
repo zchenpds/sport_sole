@@ -1,6 +1,3 @@
 <launch>
-  <arg name="session_name" default="abc" />
-  <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen">
-    <param name="session_name" value="$(arg session_name)" type="str"/>
-  </node>
+  <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen"/>
 </launch>

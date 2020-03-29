@@ -164,70 +164,52 @@ struct structSWstat
 };
 
 
-// This function is authored by Huanghe Zhang
-struct structGaitPhaseDetection
+// Gait Phase Finite State Machine
+struct GaitPhaseFSM
 {
-	uint16_t HS[2];
-	uint16_t TO[10];
+	enum class GaitPhase : uint8_t {
+		Swing = 0b00, // Swing
+		Stance1 = 0b10, // Heel contact
+		Stance2 = 0b11, // Foot flat
+		Stance3 = 0b01 // Heel off
+	};
 
-    uint8_t  GaitState[4];
+	GaitPhase gait_phase;
+	const double p_threshold = 100.0;
 	
-	structGaitPhaseDetection():
-		HS{},
-		TO{}
+	GaitPhaseFSM():
+		gait_phase(GaitPhase::Stance2)
 	{
-		GaitState[0] = 0;
-		GaitState[1] = 0;
-		GaitState[2] = 1;
-		GaitState[3] = 1; 
 	}
 	
-	void update(uint16_t hs, uint16_t to)
+	void update(const structDataPacketPureDataRAW & data)
 	{
-		if (hs>=100 && HS[1]<100)
-		{
-		  GaitState[0] = 1;	
+		double p_hind_sum = data.p6 + data.p7;
+		double p_fore_sum = data.p1 + data.p2 + data.p3 + data.p4 + data.p5;
+
+		switch (gait_phase) {
+			case GaitPhase::Swing:
+				if (p_hind_sum > p_threshold) 
+					gait_phase = GaitPhase::Stance1;
+				break;
+			case GaitPhase::Stance1:
+				if (p_fore_sum > p_threshold) 
+					gait_phase = GaitPhase::Stance2;
+				break;
+			case GaitPhase::Stance2:
+				if (p_hind_sum <= p_threshold) 
+					gait_phase = GaitPhase::Stance3;
+				break;
+			case GaitPhase::Stance3:
+				if (p_fore_sum <= p_threshold) 
+					gait_phase = GaitPhase::Swing;
+				break;
 		}
-		else
-		{
-		  GaitState[0] = 0;	
-		}
-		
-		if (hs>=100)
-		{
-		  GaitState[2] = 1;	
-		}
-		else
-		{
-		  GaitState[2] = 0; 	
-		}
-		
-		if (to<=150 && TO[9]>150)
-		{
-		  GaitState[1] = 1;	
-		}
-		else
-		{
-		  GaitState[1] = 0;	
-		}
-		
-		if (to>=150)
-		{
-		  GaitState[3] = 1;	
-		}
-		else
-		{
-		  GaitState[3] = 0; 	
-		}		
-						
-		HS[0]=HS[1];
-		HS[1]=hs;
-		
-		for(int i=0;i<9;i++)
-		{
-			TO[i]=TO[i+1];
-		}
-		TO[9]=to;
+	}
+
+	uint8_t getGaitPhase()
+	{
+		return static_cast<uint8_t>(gait_phase);
 	}
 }; 
 
@@ -713,11 +695,6 @@ void createTimePacket(uint8_t* buffer_out,uint64_t currenttime,uint8_t Odroid_Tr
 int main(int argc, char* argv[])
 {	
 	ROS_INFO("Hello from PD Shoe (SONAR, RESET, EXT SYNC, HIP-PACK LED and 8ch)");
-	
-	// automatic feedback modes
-	FILE * TemporalFile;
-	char strSession[N_STR];
-	char strTemporalFile[N_STR];
 
 	// TODO: Complete CMakeLists.txt
 	// create two publishers
@@ -733,23 +710,6 @@ int main(int argc, char* argv[])
 
 	// Transform broadcaster
 	tf2_ros::TransformBroadcaster tf_broadcaster;
-	
-	// TODO: The value of the variable strSession is obtained from argv here. 
-	// We want to modify the way the argument is parsed. 
-	// Try and follow the tutorial on Parameter Server, and use the parameter server to obtain the argument supplied to rosrun, e.g. :
-	// rosrun sport_sole sport_sole_publisher _session_name:=abc.
-	std::string stringSession;
-	if (n.getParam("session_name", stringSession)) {
-		ROS_INFO("Session_name: %s",stringSession.c_str());
-	}
-	else
-	{
-		ROS_ERROR("Failed to get session_name");
-		ros::shutdown();
-		exit(1);
-	}
-	sprintf(strSession,"%s",stringSession.c_str());
-
 
 	uint8_t bufferLog[PACKET_LENGTH_LOG];
 	uint8_t bufferPd[PACKET_LENGTH_PD];
@@ -773,8 +733,7 @@ int main(int argc, char* argv[])
 	structDataPacketPureData dataPacketR;
 	structSyncPacket SyncPacket;
 
-	structGaitPhaseDetection GaitPhaseDetectionL;
-	structGaitPhaseDetection GaitPhaseDetectionR;
+	GaitPhaseFSM gait_phase_fsms[LEFT_RIGHT];
 	
 	swStat.packetLedSent=0;
 	swStat.packetGuiSent=0;
@@ -1005,6 +964,9 @@ int main(int argc, char* argv[])
 		// }
 			
 		sport_sole::SportSole msg;
+		ros::Time ros_stamp_curr = getRosTimestampL();
+		//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
+		//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
 		if (cycles % PUB_PERIOD_MS == 0)
 		{
 			// Define the function to get the quaternion
@@ -1029,9 +991,7 @@ int main(int argc, char* argv[])
 			};
 			
 			// Populate the SportSole message
-			//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
-			//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
-			msg.header.stamp = getRosTimestampL();
+			msg.header.stamp = ros_stamp_curr;
 			msg.raw_acceleration[0].linear.x = -dataPacketL.r_ay * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.y = dataPacketL.r_ax * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.z = dataPacketL.r_az * GRAVITATIONAL_ACCELERATION;
@@ -1073,18 +1033,16 @@ int main(int argc, char* argv[])
 			msg.pressures[p_index++] = dataPacketR.p8;
 
 			// TO-DO
-			GaitPhaseDetectionL.update(dataPacketRawL.p7+dataPacketRawL.p8,dataPacketRawL.p1+dataPacketRawL.p2);
-			GaitPhaseDetectionR.update(dataPacketRawR.p7+dataPacketRawR.p8,dataPacketRawR.p1+dataPacketRawR.p2);
+			gait_phase_fsms[LEFT].update(dataPacketRawL);
+			gait_phase_fsms[RIGHT].update(dataPacketRawR);
 			
 			// Ignore the first 4 sec of data because the gravity was not removed yet.
 			if ((ros_stamp_curr - ros_stamp_base).toSec() > 4.5)
 			{
 				msg.gait_state = 0;
 				msg.gait_state |= 
-					(GaitPhaseDetectionL.GaitState[2] << 3) | // left heel
-					(GaitPhaseDetectionL.GaitState[3] << 2) | // left toe
-					(GaitPhaseDetectionR.GaitState[2] << 1) | // right heel
-					(GaitPhaseDetectionR.GaitState[3] << 0);  // right toe
+					(gait_phase_fsms[LEFT].getGaitPhase() << 2) |
+					(gait_phase_fsms[RIGHT].getGaitPhase() << 0);
 				pub_sport_sole.publish(msg);
 			}
 			

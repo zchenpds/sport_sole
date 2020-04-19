@@ -757,7 +757,7 @@ int main(int argc, char* argv[])
 	ros::Time ros_stamp_base;
 	ros::Duration transmission_delay(0.002);
 	uint32_t sport_sole_l_stamp_base;
-	uint64_t sport_sole_r_stamp_base;
+	uint32_t sport_sole_r_stamp_base;
 
 	ros::Duration delay(0.00);
 

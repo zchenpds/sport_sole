@@ -965,10 +965,13 @@ int main(int argc, char* argv[])
 			
 		sport_sole::SportSole msg;
 		ros::Time ros_stamp_curr = getRosTimestampL();
+		static ros::Time ros_stamp_desired = ros_stamp_curr;
 		//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
 		//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
-		if (cycles % PUB_PERIOD_MS == 0)
+		// if (cycles % PUB_PERIOD_MS == 0)
+		if (ros_stamp_curr > ros_stamp_desired)
 		{
+			ros_stamp_desired += ros::Duration(0.01); // 100 Hz
 			// Define the function to get the quaternion
 			auto assignQuaternion = [](const structDataPacketPureData & data_packet, geometry_msgs::Quaternion & q_msg) {
 				#if 0

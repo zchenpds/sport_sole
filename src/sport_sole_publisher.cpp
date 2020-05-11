@@ -700,6 +700,11 @@ int main(int argc, char* argv[])
 	// create two publishers
 	ros::init(argc, argv, "sport_sole_publisher");
 	ros::NodeHandle n(std::string("~"));
+	string global_frame_ids[LEFT_RIGHT];
+	for (size_t lr: {LEFT, RIGHT})
+	{
+		n.param<std::string>(string("global_frame_id_") + (lr == LEFT ? "l" : "r"), global_frame_ids[lr], "map");
+	}
 
 
 	//publish msg
@@ -1057,12 +1062,11 @@ int main(int argc, char* argv[])
 				
 				// Tail of the arrows
 				geometry_msgs:: Point arrow_tails[LEFT_RIGHT];
-				arrow_tails[LEFT].x = 0.0;
-				arrow_tails[LEFT].y = 0.5;
-				arrow_tails[LEFT].z = 0.0;
-				arrow_tails[RIGHT].x = 0.0;
-				arrow_tails[RIGHT].y = -0.5;
-				arrow_tails[RIGHT].z = 0.0; 
+				if (global_frame_ids[LEFT].compare(global_frame_ids[RIGHT]) == 0)
+				{
+					arrow_tails[LEFT].y = 0.5;
+					arrow_tails[RIGHT].y = -0.5;
+				}
 
 				// Draw arrows to represent acceleration
 				for (size_t lr: {LEFT, RIGHT})
@@ -1070,7 +1074,7 @@ int main(int argc, char* argv[])
 					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
 				
 					marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
-					marker_ptr->header.frame_id = "map";
+					marker_ptr->header.frame_id = global_frame_ids[lr];
 					marker_ptr->ns = "~";
 					marker_ptr->id = lr; 
 					marker_ptr->lifetime = ros::Duration(1.0);
@@ -1104,7 +1108,7 @@ int main(int argc, char* argv[])
 					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
 					
 					marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
-					marker_ptr->header.frame_id = "map";
+					marker_ptr->header.frame_id = global_frame_ids[lr];
 					marker_ptr->lifetime = ros::Duration(0.13);
 					marker_ptr->ns = n.getNamespace();
 					marker_ptr->type = visualization_msgs::Marker::CUBE;
@@ -1135,7 +1139,7 @@ int main(int argc, char* argv[])
 				{
 					geometry_msgs::TransformStamped msg_tf; 
 					msg_tf.header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
-					msg_tf.header.frame_id = "map";
+					msg_tf.header.frame_id = global_frame_ids[lr];
 					msg_tf.child_frame_id = (lr == LEFT) ? "imu_left" : "imu_right";
 					msg_tf.transform.translation.x = arrow_tails[lr].x;
 					msg_tf.transform.translation.y = arrow_tails[lr].y;

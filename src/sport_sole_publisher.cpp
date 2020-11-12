@@ -27,6 +27,7 @@
 #include <wordexp.h>
 
 #include <ros/ros.h>
+#include <ros/time.h>
 #include "sport_sole/SportSole.h"
 #include <tf/LinearMath/Quaternion.h>
 #include <tf/LinearMath/Vector3.h>
@@ -761,8 +762,8 @@ int main(int argc, char* argv[])
 	
 	ros::Time ros_stamp_base;
 	ros::Duration transmission_delay(0.002);
-	uint32_t sport_sole_l_stamp_base;
-	uint32_t sport_sole_r_stamp_base;
+	uint32_t sport_sole_l_stamp_base = 0l;
+	uint32_t sport_sole_r_stamp_base = 0l;
 
 	ros::Duration delay(0.00);
 
@@ -976,7 +977,7 @@ int main(int argc, char* argv[])
 		// if (cycles % PUB_PERIOD_MS == 0)
 		if (ros_stamp_curr >= ros_stamp_desired)
 		{
-			ros_stamp_desired += ros::Duration(0.001); // up to 1000 Hz
+			ros_stamp_desired = ros_stamp_curr + ros::Duration(0.001); // up to 1000 Hz
 			// Define the function to get the quaternion
 			auto assignQuaternion = [](const structDataPacketPureData & data_packet, geometry_msgs::Quaternion & q_msg) {
 				#if 0

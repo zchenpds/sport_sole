@@ -762,23 +762,25 @@ int main(int argc, char* argv[])
 	
 	ros::Time ros_stamp_base;
 	ros::Duration transmission_delay(0.002);
-	uint32_t sport_sole_l_stamp_base = 0l;
-	uint32_t sport_sole_r_stamp_base = 0l;
+	ros::Duration l_to_ros_offset(0, 0);
+	ros::Duration r_to_ros_offset(0, 0);
 
-	ros::Duration delay(0.00);
+	constexpr double alpha_low_pass = 0.02;
 
-	auto getRosTimestampL = [&ros_stamp_base, &dataPacketL, &sport_sole_l_stamp_base, &delay]()->ros::Time{
-		//return ros::Time::now() - delay;
-		if (!sport_sole_l_stamp_base) 
-			sport_sole_l_stamp_base = dataPacketL.timestamp;
-		return ros_stamp_base + ros::Duration((dataPacketL.timestamp - sport_sole_l_stamp_base) * 1e-6);
+	auto getRosTimestampL = [&]()->ros::Time{
+		if (l_to_ros_offset.isZero()) 
+			l_to_ros_offset = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
+		ros::Duration l_to_ros = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
+		l_to_ros_offset = l_to_ros_offset + (l_to_ros - l_to_ros_offset) * alpha_low_pass;
+		return ros::Time(dataPacketL.timestamp * 1e-6) + l_to_ros_offset;
 	};
 
-	auto getRosTimestampR = [&ros_stamp_base, &dataPacketR, &sport_sole_r_stamp_base, &delay]()->ros::Time{
-		//return ros::Time::now() - delay;
-		if (!sport_sole_r_stamp_base) 
-			sport_sole_r_stamp_base = dataPacketR.timestamp;
-		return ros_stamp_base + ros::Duration((dataPacketR.timestamp - sport_sole_r_stamp_base) * 1e-6);
+	auto getRosTimestampR = [&]()->ros::Time{
+		if (r_to_ros_offset.isZero()) 
+			r_to_ros_offset = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
+		ros::Duration r_to_ros = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
+		r_to_ros_offset = r_to_ros_offset + (r_to_ros - r_to_ros_offset) * alpha_low_pass;
+		return ros::Time(dataPacketR.timestamp * 1e-6) + r_to_ros_offset;
 	};
 	
 	char strDate[N_STR];
@@ -961,23 +963,19 @@ int main(int argc, char* argv[])
 		
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
-
-		// // Set odroid stamp base
-		// if (cycles == 0)
-		// {
-		// 	sport_sole_l_stamp_base = dataPacketL.Odroid_Timestamp;
-		// 	sport_sole_r_stamp_base = dataPacketR.Odroid_Timestamp;
-		// }
 			
 		sport_sole::SportSole msg;
-		ros::Time ros_stamp_curr = getRosTimestampL();
-		static ros::Time ros_stamp_desired = ros_stamp_curr;
+		uint32_t l_stamp_curr = dataPacketL.timestamp;
+		static uint32_t l_stamp_desired = l_stamp_curr;
 		//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
 		//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
 		// if (cycles % PUB_PERIOD_MS == 0)
-		if (ros_stamp_curr >= ros_stamp_desired)
+		if (l_stamp_curr >= l_stamp_desired)
 		{
-			ros_stamp_desired = ros_stamp_curr + ros::Duration(0.001); // up to 1000 Hz
+			l_stamp_desired = l_stamp_curr + 1000; // up to 1000 Hz
+			ros::Time l_stamp_ros = getRosTimestampL();
+			ros::Time r_stamp_ros = getRosTimestampR();
+			
 			// Define the function to get the quaternion
 			auto assignQuaternion = [](const structDataPacketPureData & data_packet, geometry_msgs::Quaternion & q_msg) {
 				#if 0
@@ -1000,7 +998,7 @@ int main(int argc, char* argv[])
 			};
 			
 			// Populate the SportSole message
-			msg.header.stamp = ros_stamp_curr;
+			msg.header.stamp = l_stamp_ros;
 			msg.raw_acceleration[0].linear.x = -dataPacketL.r_ay * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.y = dataPacketL.r_ax * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.z = dataPacketL.r_az * GRAVITATIONAL_ACCELERATION;
@@ -1046,7 +1044,7 @@ int main(int argc, char* argv[])
 			gait_phase_fsms[RIGHT].update(dataPacketRawR);
 			
 			// Ignore the first 4 sec of data because the gravity was not removed yet.
-			if ((ros_stamp_curr - ros_stamp_base).toSec() > 4.5)
+			if ((l_stamp_ros - ros_stamp_base).toSec() > 4.5)
 			{
 				msg.gait_state = 0;
 				msg.gait_state |= 
@@ -1074,7 +1072,7 @@ int main(int argc, char* argv[])
 				{
 					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
 				
-					marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+					marker_ptr->header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
 					marker_ptr->header.frame_id = global_frame_ids[lr];
 					marker_ptr->ns = "~";
 					marker_ptr->id = lr; 
@@ -1108,7 +1106,7 @@ int main(int argc, char* argv[])
 				{
 					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
 					
-					marker_ptr->header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+					marker_ptr->header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
 					marker_ptr->header.frame_id = global_frame_ids[lr];
 					marker_ptr->lifetime = ros::Duration(0.13);
 					marker_ptr->ns = n.getNamespace();
@@ -1139,7 +1137,7 @@ int main(int argc, char* argv[])
 				for (size_t lr: {LEFT, RIGHT})
 				{
 					geometry_msgs::TransformStamped msg_tf; 
-					msg_tf.header.stamp = (lr == LEFT) ? getRosTimestampL() : getRosTimestampR();
+					msg_tf.header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
 					msg_tf.header.frame_id = global_frame_ids[lr];
 					msg_tf.child_frame_id = (lr == LEFT) ? "imu_left" : "imu_right";
 					msg_tf.transform.translation.x = arrow_tails[lr].x;

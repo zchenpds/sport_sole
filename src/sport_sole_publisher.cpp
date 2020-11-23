@@ -39,6 +39,7 @@
 #include <geometry_msgs/Point.h>
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8.h>
+#include <std_msgs/Float32.h>
 
 
 #define US_CYCLES 1000 //[us]
@@ -707,6 +708,9 @@ int main(int argc, char* argv[])
 		n.param<std::string>(string("global_frame_id_") + (lr == LEFT ? "l" : "r"), global_frame_ids[lr], "map");
 	}
 
+	// Publish time offset variations.
+	ros::Publisher pub_l_to_ros = n.advertise<std_msgs::Float32>("l_to_ros", 1);
+	ros::Publisher pub_r_to_ros = n.advertise<std_msgs::Float32>("r_to_ros", 1);
 
 	//publish msg
 	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 10) ;
@@ -771,6 +775,9 @@ int main(int argc, char* argv[])
 		if (l_to_ros_offset.isZero()) 
 			l_to_ros_offset = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
 		ros::Duration l_to_ros = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
+		std_msgs::Float32 msg; 
+		msg.data = (l_to_ros - l_to_ros_offset).toSec();
+		pub_l_to_ros.publish(msg);
 		l_to_ros_offset = l_to_ros_offset + (l_to_ros - l_to_ros_offset) * alpha_low_pass;
 		return ros::Time(dataPacketL.timestamp * 1e-6) + l_to_ros_offset;
 	};
@@ -779,6 +786,9 @@ int main(int argc, char* argv[])
 		if (r_to_ros_offset.isZero()) 
 			r_to_ros_offset = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
 		ros::Duration r_to_ros = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
+		std_msgs::Float32 msg;
+		msg.data = (r_to_ros - r_to_ros_offset).toSec();
+		pub_r_to_ros.publish(msg);
 		r_to_ros_offset = r_to_ros_offset + (r_to_ros - r_to_ros_offset) * alpha_low_pass;
 		return ros::Time(dataPacketR.timestamp * 1e-6) + r_to_ros_offset;
 	};

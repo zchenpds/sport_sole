@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="sport_sole" type="sport_sole_publisher" name="sport_sole_publisher" output="screen" />
+  <node name="time_variation_plot" pkg="rqt_plot" type="rqt_plot"
+    args="/sport_sole_publisher/l_to_ros /sport_sole_publisher/r_to_ros" />
+</launch>

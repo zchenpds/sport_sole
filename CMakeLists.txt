@@ -16,6 +16,50 @@ find_package(catkin REQUIRED COMPONENTS
     tf
 )
 
+find_package(Qt5 COMPONENTS Widgets Core Gui REQUIRED)
+
+## We also use Ogre
+include($ENV{ROS_ROOT}/core/rosbuild/FindPkgConfig.cmake)
+pkg_check_modules(OGRE OGRE)
+include_directories( ${OGRE_INCLUDE_DIRS} )
+link_directories( ${OGRE_LIBRARY_DIRS} )
+
+add_definitions(-DQT_NO_KEYWORDS)
+
+## Here we specify which header files need to be run through "moc",
+## Qt's meta-object compiler.
+qt5_wrap_cpp(MOC_FILES
+  include/sport_sole/sport_sole_display.h
+)
+
+## Here we specify the list of source files, including the output of
+## the previous command which is stored in ``${MOC_FILES}``.
+set(SOURCE_FILES
+  src/sport_sole_display.cpp
+  src/sport_sole_visual.cpp
+  ${MOC_FILES}
+)
+
+## Set the default path for built libraries to the "lib" directory
+set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+
+## An rviz plugin is just a shared library, so here we declare the
+## library to be called ``${PROJECT_NAME}`` (which is
+## "rviz_plugin_tutorials", or whatever your version of this project
+## is called) and specify the list of source files we collected above
+## in ``${SOURCE_FILES}``.
+add_library(${PROJECT_NAME} ${SOURCE_FILES})
+
+## Link the library with whatever Qt libraries have been defined by
+## the ``find_package(Qt4 ...)`` line above.
+##
+## Although this puts "rviz_plugin_tutorials" (or whatever you have
+## called the project) as the name of the library, cmake knows it is a
+## library and names the actual file something like
+## "librviz_plugin_tutorials.so", or whatever is appropriate for your
+## particular OS.
+target_link_libraries(${PROJECT_NAME} Qt5::Widgets ${QT_LIBRARIES} ${OGRE_LIBRARIES})
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

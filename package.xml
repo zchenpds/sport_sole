@@ -64,9 +64,10 @@
 
   <depend>tf</depend>
   <!-- The export tag contains other, unspecified, tags -->
-  <export>
-    <!-- Other tools can request additional information be placed here -->
 
+  <depend>rviz</depend>
+  <export>
+    <rviz plugin="${prefix}/plugin_description.xml"/>
   </export>
 </package>
 

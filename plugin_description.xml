@@ -1,0 +1,10 @@
+<library path="lib/libsport_sole">
+  <class name="sport_sole/SportSole"
+         type="sport_sole::SportSoleDisplay"
+         base_class_type="rviz::Display">
+    <description>
+      Displays sport_sole pressure sensor data.
+    </description>
+    <message_type>sport_sole/SportSole</message_type>
+  </class>
+</library>

@@ -1009,6 +1009,7 @@ int main(int argc, char* argv[])
 			
 			// Populate the SportSole message
 			msg.header.stamp = l_stamp_ros;
+			msg.header.frame_id = "odom";
 			msg.raw_acceleration[0].linear.x = -dataPacketL.r_ay * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.y = dataPacketL.r_ax * GRAVITATIONAL_ACCELERATION;
 			msg.raw_acceleration[0].linear.z = dataPacketL.r_az * GRAVITATIONAL_ACCELERATION;

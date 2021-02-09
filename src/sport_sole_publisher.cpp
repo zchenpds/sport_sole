@@ -40,6 +40,10 @@
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float32.h>
+#include <owt.h>
+
+#include <condition_variable>
+std::condition_variable cond_var;
 
 
 #define US_CYCLES 1000 //[us]
@@ -469,6 +473,7 @@ struct structPDShoe
 	uint8_t lastPacket[PACKET_LENGTH_WIFI];
 	unsigned int packetError;
 	unsigned int packetReceived;
+	bool ready = false;
 	uint8_t id;
 };
 
@@ -538,7 +543,7 @@ inline bool checkSyncPacket(uint8_t *buffer,int ret)
 
 void threadSYNCreceive(structSync* SyncBoard)
 {
-	dataMutex.lock();
+	std::unique_lock<std::mutex> lk(dataMutex);
 	
 	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
 
@@ -565,7 +570,7 @@ void threadSYNCreceive(structSync* SyncBoard)
 	len = (socklen_t)sizeof(addrClient);
 	id=SyncBoard->id;
 	
-	dataMutex.unlock();
+	lk.unlock();
 	usleep(250);
 	
 	// No blocking mode
@@ -578,7 +583,7 @@ void threadSYNCreceive(structSync* SyncBoard)
 
 		if (ret>1)
 		{			
-			dataMutex.lock();
+			std::lock_guard<std::mutex> lk(dataMutex);
 			
 			SyncBoard->packetReceived++;
 			if (checkSyncPacket(recvBuffer,ret))
@@ -591,8 +596,6 @@ void threadSYNCreceive(structSync* SyncBoard)
 				//printf("Ret=%d\n", ret);
 			}
 			
-			dataMutex.unlock();
-			
 		}
 		else
 			this_thread::sleep_for(chrono::milliseconds(1));
@@ -603,7 +606,7 @@ void threadSYNCreceive(structSync* SyncBoard)
 
 void threadUDPreceive(structPDShoe* PDShoe)
 {
-	dataMutex.lock();
+	std::unique_lock<std::mutex> lk(dataMutex);
 	
 	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
 	
@@ -630,7 +633,7 @@ void threadUDPreceive(structPDShoe* PDShoe)
 	len = (socklen_t)sizeof(addrClient);
 	
 	id=PDShoe->id;
-	dataMutex.unlock();
+	lk.unlock();
 	usleep(250);
 		
 	while(is_running)
@@ -641,12 +644,14 @@ void threadUDPreceive(structPDShoe* PDShoe)
 		{
 			//printf("Data!\n");
 			
-			dataMutex.lock();
+			std::unique_lock<std::mutex> lk(dataMutex);
+			cond_var.wait(lk, [&]{ return !PDShoe->ready; });
 			
 			PDShoe->packetReceived++;
 			if (checkPacket(recvBuffer,ret))
 			{
 				memcpy(PDShoe->lastPacket,recvBuffer,PACKET_LENGTH_WIFI);
+				PDShoe->ready = true;
 			}
 			else
 			{
@@ -654,7 +659,8 @@ void threadUDPreceive(structPDShoe* PDShoe)
 				//printf("Ret=%d\n", ret);
 			}
 			
-			dataMutex.unlock();
+			lk.unlock();
+			cond_var.notify_all();
 			
 		}
 		else
@@ -713,7 +719,7 @@ int main(int argc, char* argv[])
 	ros::Publisher pub_r_to_ros = n.advertise<std_msgs::Float32>("r_to_ros", 1);
 
 	//publish msg
-	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 10) ;
+	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 1000) ;
 
 	//publisher created here for visualizing shoe's acceleration data and orientation
 	ros::Publisher pub_markers = n.advertise<visualization_msgs::MarkerArray> ("sport_sole_markers", 1);
@@ -766,6 +772,7 @@ int main(int argc, char* argv[])
 	
 	ros::Time ros_stamp_base;
 	ros::Duration transmission_delay(0.002);
+#if 0
 	ros::Duration l_to_ros_offset(0, 0);
 	ros::Duration r_to_ros_offset(0, 0);
 
@@ -792,7 +799,30 @@ int main(int argc, char* argv[])
 		r_to_ros_offset = r_to_ros_offset + (r_to_ros - r_to_ros_offset) * alpha_low_pass;
 		return ros::Time(dataPacketR.timestamp * 1e-6) + r_to_ros_offset;
 	};
-	
+#else
+
+	ros::Duration owt_window_size(10.0);
+	Owt<ros::Duration> owt_l(owt_window_size), owt_r(owt_window_size);
+
+	auto getRosTimestampL = [&]()->ros::Time{
+		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
+		auto ts_ros = owt_l(ros::Duration(dataPacketL.timestamp * 1e-6), ros_time_now_since_epoch);
+		std_msgs::Float32 msg; 
+		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
+		pub_l_to_ros.publish(msg);
+		return ros::Time(ts_ros.toSec());
+	};
+
+	auto getRosTimestampR = [&]()->ros::Time{
+		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
+		auto ts_ros = owt_r(ros::Duration(dataPacketR.timestamp * 1e-6), ros_time_now_since_epoch);
+		std_msgs::Float32 msg; 
+		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
+		pub_r_to_ros.publish(msg);
+		return ros::Time(ts_ros.toSec());
+	};
+#endif
+
 	char strDate[N_STR];
 	char strFile[N_STR];
 	
@@ -937,13 +967,12 @@ int main(int argc, char* argv[])
 	bool cond=false;
 	while(!cond && ros::ok() && !ros::isShuttingDown())
 	{
-		dataMutex.lock();
-		cond=(PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0); //&& (PDShoeR.packetReceived>0);
-		dataMutex.unlock();
-
-		// Set ROS stamp base
-		if (cond)
-			ros_stamp_base = ros::Time::now() - transmission_delay;
+		{
+			std::lock_guard<std::mutex> lk(dataMutex);
+			cond = (PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0);
+			if (cond)
+				ros_stamp_base = ros::Time::now() - transmission_delay;
+		}
 		
 		usleep(500);
 	}
@@ -953,36 +982,44 @@ int main(int argc, char* argv[])
 		
 	while(ros::ok() && !ros::isShuttingDown())
 	{
-		timestamp=getMicrosTimeStamp();
-		
-		//CODE!
-		dataMutex.lock();
-				
-		reconstructStructPureDataRAW(PDShoeL.lastPacket,dataPacketRawL);
-		reconstructStructPureDataRAW(PDShoeR.lastPacket,dataPacketRawR);
-		reconstructStructSyncPacket(Sync.lastPacket,SyncPacket);
-		
-		swStat.packetErrorPdShoeL=PDShoeL.packetError;
-		swStat.packetErrorPdShoeR=PDShoeR.packetError;
-		swStat.packetErrorSync=Sync.packetError;
-		swStat.packetReceivedPdShoeL=PDShoeL.packetReceived;
-		swStat.packetReceivedPdShoeR=PDShoeR.packetReceived;
-		swStat.packetReceivedSync=Sync.packetReceived;
-		
-		dataMutex.unlock();
+		// Critical section!
+		{
+			std::unique_lock<std::mutex> lk(dataMutex);
+			cond_var.wait(lk, [&]{ return PDShoeL.ready || PDShoeR.ready; });
+			
+			timestamp=getMicrosTimeStamp();
+			reconstructStructPureDataRAW(PDShoeL.lastPacket,dataPacketRawL);
+			reconstructStructPureDataRAW(PDShoeR.lastPacket,dataPacketRawR);
+			reconstructStructSyncPacket(Sync.lastPacket,SyncPacket);
+			
+			swStat.packetErrorPdShoeL=PDShoeL.packetError;
+			swStat.packetErrorPdShoeR=PDShoeR.packetError;
+			swStat.packetErrorSync=Sync.packetError;
+			swStat.packetReceivedPdShoeL=PDShoeL.packetReceived;
+			swStat.packetReceivedPdShoeR=PDShoeR.packetReceived;
+			swStat.packetReceivedSync=Sync.packetReceived;
+
+			PDShoeL.ready = false;
+			PDShoeR.ready = false;
+
+			lk.unlock();
+			cond_var.notify_all();
+		}
 		
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
 			
 		sport_sole::SportSole msg;
-		uint32_t l_stamp_curr = dataPacketL.timestamp;
-		static uint32_t l_stamp_desired = l_stamp_curr;
+		
+		static auto packets_sent = swStat.packetReceivedPdShoeL;
 		//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
 		//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
 		// if (cycles % PUB_PERIOD_MS == 0)
-		if (l_stamp_curr >= l_stamp_desired)
+		if (packets_sent < swStat.packetReceivedPdShoeL)
 		{
-			l_stamp_desired = l_stamp_curr + 1000; // up to 1000 Hz
+			int new_packets_received = (int)swStat.packetReceivedPdShoeL - (int)packets_sent;
+			ROS_WARN_STREAM_COND(new_packets_received > 1, "Failed to forward " << new_packets_received - 1 << " packets.");
+			packets_sent = swStat.packetReceivedPdShoeL; 
 			ros::Time l_stamp_ros = getRosTimestampL();
 			ros::Time r_stamp_ros = getRosTimestampR();
 			
@@ -1193,8 +1230,8 @@ int main(int argc, char* argv[])
 		//printf("t cycle=%d\n",(uint16_t)tCycle);
 		
 #define US_SLEEP_CORRECTION 0 //48
-		if(!(tCycle>cycleMicrosTime-US_SLEEP_CORRECTION)) usleep(cycleMicrosTime-US_SLEEP_CORRECTION-tCycle);
-		//else printf("*\n");
+		// if(!(tCycle>cycleMicrosTime-US_SLEEP_CORRECTION)) usleep(cycleMicrosTime-US_SLEEP_CORRECTION-tCycle);
+		// else printf("%ul\n", tCycle);
 		
 		
 	}

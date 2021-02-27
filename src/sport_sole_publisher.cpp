@@ -42,6 +42,9 @@
 #include <std_msgs/Float32.h>
 #include <owt.h>
 
+#include "sport_sole/sport_sole_common.h"
+using namespace sport_sole;
+
 #include <condition_variable>
 std::condition_variable cond_var;
 
@@ -82,12 +85,6 @@ using namespace std;
 mutex dataMutex;
 bool is_running = true;
 
-// enum left or right
-enum left_right_t {
-	LEFT=0,
-	RIGHT,
-	LEFT_RIGHT
-};
 
 struct structDataPacketPureData 
 {
@@ -168,56 +165,6 @@ struct structSWstat
 	unsigned int packetReceivedSync;
 	
 };
-
-
-// Gait Phase Finite State Machine
-struct GaitPhaseFSM
-{
-	enum class GaitPhase : uint8_t {
-		Swing = 0b00, // Swing
-		Stance1 = 0b10, // Heel contact
-		Stance2 = 0b11, // Foot flat
-		Stance3 = 0b01 // Heel off
-	};
-
-	GaitPhase gait_phase;
-	const double p_threshold = 100.0;
-	
-	GaitPhaseFSM():
-		gait_phase(GaitPhase::Stance2)
-	{
-	}
-	
-	void update(const structDataPacketPureDataRAW & data)
-	{
-		double p_hind_sum = data.p6 + data.p7;
-		double p_fore_sum = data.p1 + data.p2 + data.p3 + data.p4 + data.p5;
-
-		switch (gait_phase) {
-			case GaitPhase::Swing:
-				if (p_hind_sum > p_threshold) 
-					gait_phase = GaitPhase::Stance1;
-				break;
-			case GaitPhase::Stance1:
-				if (p_fore_sum > p_threshold) 
-					gait_phase = GaitPhase::Stance2;
-				break;
-			case GaitPhase::Stance2:
-				if (p_hind_sum <= p_threshold) 
-					gait_phase = GaitPhase::Stance3;
-				break;
-			case GaitPhase::Stance3:
-				if (p_fore_sum <= p_threshold) 
-					gait_phase = GaitPhase::Swing;
-				break;
-		}
-	}
-
-	uint8_t getGaitPhase()
-	{
-		return static_cast<uint8_t>(gait_phase);
-	}
-}; 
 
 
 
@@ -749,7 +696,7 @@ int main(int argc, char* argv[])
 	structDataPacketPureData dataPacketR;
 	structSyncPacket SyncPacket;
 
-	GaitPhaseFSM gait_phase_fsms[LEFT_RIGHT];
+	GaitPhaseFSM<structDataPacketPureDataRAW> gait_phase_fsms[LEFT_RIGHT];
 	
 	swStat.packetLedSent=0;
 	swStat.packetGuiSent=0;

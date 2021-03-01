@@ -111,12 +111,6 @@ private:
   boost::shared_ptr<rviz::ColorProperty> color_hf_property_; // Hindfoot
   boost::shared_ptr<rviz::FloatProperty> alpha_property_;
 
-  // enum left or right
-  enum left_right_t {
-    LEFT=0,
-    RIGHT,
-    LEFT_RIGHT
-  };
 };
 // END_TUTORIAL
 

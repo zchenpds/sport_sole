@@ -33,6 +33,16 @@ namespace sport_sole {
     return static_cast<GaitPhase>((lr == LEFT) ? (gait_state >> 2) & 0b11 : (gait_state & 0b11));
   }
 
+  inline bool isForefootTouchingGround(GaitPhase s)
+  {
+    return s == GaitPhase::Stance2 || s == GaitPhase::Stance3;
+  }
+
+  inline bool isHindfootTouchingGround(GaitPhase s)
+  {
+    return s == GaitPhase::Stance1 || s == GaitPhase::Stance2;
+  }
+
   const double p_threshold = 100.0;
 
   // Gait Phase Finite State Machine
@@ -75,6 +85,12 @@ namespace sport_sole {
     {
       return static_cast<uint8_t>(gait_phase);
     }
+  };
+
+  struct IncidentCounter
+  {
+    int StickyForefootPressureSensor = 0;
+    int StickyHindfootPressureSensor = 0;
   };
 
 }

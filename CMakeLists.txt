@@ -97,6 +97,7 @@ target_link_libraries(${PROJECT_NAME} Qt5::Widgets ${QT_LIBRARIES} ${OGRE_LIBRAR
 add_message_files(
    FILES
    SportSole.msg
+   GaitState.msg
 )
 
 ## Generate services in the 'srv' folder

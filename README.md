@@ -45,3 +45,10 @@ The following configurations assume that you use a TP-Link router.
 1. The network traffic can be monitored in "Advanced" -> "Wireless 2.4GHz" -> "Wireless Statistics".
 1 The IP address of "PD shoe left" and "PD shoe right" should be `192.168.1.11` and `192.168.1.12`, respectively.
 
+## Reset the SSID of XBee module
+1. Flash the teensy with firmware "Xbee_AT_transparent.ino"
+1. Send "+++" with no carriage return via serial. Teensy should respond with "Ok".
+1. Immediately after the previous step, send "atid" with carriage return. Teensy should respond with the current SSID.
+1. Immediately after the previous step, send "atid newssid" with carriage return. Teensy should respond with the new SSID "newssid".
+1. Immediately after the previous step, send "atwr" with carriage return to write the change to XBee.
+* Note that timeout may occur if you wait too long after each step.

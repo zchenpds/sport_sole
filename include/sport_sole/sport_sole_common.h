@@ -104,12 +104,14 @@ namespace sport_sole {
       p_threshold_(p_threshold)
     {}
       
-    void update(const SportSole::_pressures_type & pressures)
+    void update(const sport_sole::SportSole& msg)
     {
+      const auto& pressures = msg.pressures;
       for (size_t lr : {LEFT, RIGHT}) {
         size_t i0 = (lr==LEFT ? 0 : 8);
         double p_hind_sum = pressures[i0 + 6] + pressures[i0 + 7]; // 7~8
         double p_fore_sum = pressures[i0 + 0] + pressures[i0 + 1] + pressures[i0 + 2] + pressures[i0 + 3] + pressures[i0 + 4]; // 1~5
+        double wy = msg.angular_velocity[lr].y;
 
         auto & gait_phase = gait_phases_[lr];
         switch (gait_phase) {

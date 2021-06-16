@@ -17,6 +17,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(Qt5 COMPONENTS Widgets Core Gui REQUIRED)
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+message(${Eigen3_DIR})
 
 ## We also use Ogre
 include($ENV{ROS_ROOT}/core/rosbuild/FindPkgConfig.cmake)
@@ -166,6 +168,7 @@ catkin_package(
 include_directories(
 include
 ${catkin_INCLUDE_DIRS}
+${Eigen3_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -250,3 +253,9 @@ install(DIRECTORY include/${PROJECT_NAME}/
 add_executable(sport_sole_publisher src/sport_sole_publisher.cpp)
 target_link_libraries(sport_sole_publisher ${catkin_LIBRARIES})
 add_dependencies(sport_sole_publisher sport_sole_generate_messages_cpp)
+
+add_executable(sport_sole_publisher_vibration src/sport_sole_publisher_vibration.cpp)
+target_link_libraries(sport_sole_publisher_vibration 
+  ${catkin_LIBRARIES}
+  Eigen3::Eigen)
+add_dependencies(sport_sole_publisher_vibration sport_sole_generate_messages_cpp)

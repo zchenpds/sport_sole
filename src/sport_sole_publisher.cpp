@@ -52,7 +52,7 @@ std::condition_variable cond_var;
 #define US_CYCLES 1000 //[us]
 
 #define BUFFER 4096
-#define PACKET_LENGTH_WIFI  77
+#define PACKET_LENGTH_WIFI  97
 #define PACKET_LENGTH_LOG   166
 #define PACKET_LENGTH_PD    24//22
 #define PACKET_LENGTH_LED    8
@@ -769,9 +769,6 @@ int main(int argc, char* argv[])
 		return ros::Time(ts_ros.toSec());
 	};
 #endif
-
-	char strDate[N_STR];
-	char strFile[N_STR];
 	
 	time_t timer;
 	struct tm tstruct;
@@ -874,10 +871,6 @@ int main(int argc, char* argv[])
 	
 	uint8_t Odroid_Trigger=1;
 	uint8_t sendSportSole=2;
-	FILE * GPIOzero;
-	FILE * GPIOone;
-	GPIOzero = fopen("/sys/class/gpio/gpio204/value", "w");
-	GPIOone = fopen("/sys/class/gpio/gpio204/value", "w");
 	
 	// Some initial blinking...
 	// the on-board LED should stay on after an even number of loops
@@ -893,13 +886,18 @@ int main(int argc, char* argv[])
 	    usleep(75000);
 	  }
 	
-	  /* Setup the random number generator so that it generates
-	  a different sequence at each call of the program
-	  */
-		// 	  if(Tstep_max>0){
-		// /* initialize random seed: */
-		// srand (time(NULL));
-		// 	  }
+
+
+	if (1)
+	{
+		// Set to baseline mode
+		currenttime = getMicrosTimeStamp()-timestamp_start;
+		createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+		bufferTime[3] = 3;
+		sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+		ROS_INFO("Enable baseline test sent");
+		this_thread::sleep_for(chrono::milliseconds(200));
+	}
 
 	// Send an enable packet
 	currenttime = getMicrosTimeStamp()-timestamp_start;

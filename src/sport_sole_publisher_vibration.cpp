@@ -27,6 +27,30 @@
 #include <math.h>
 #include <string.h>
 #include <inttypes.h>
+#include <wordexp.h>
+
+#include <ros/ros.h>
+#include <ros/time.h>
+#include "sport_sole/SportSole.h"
+#include <tf/LinearMath/Quaternion.h>
+#include <tf/LinearMath/Vector3.h>
+#include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/Point.h>
+#include <std_msgs/String.h>
+#include <std_msgs/UInt8.h>
+#include <std_msgs/Float32.h>
+#include <owt.h>
+
+#include "sport_sole/sport_sole_common.h"
+using namespace sport_sole;
+
+#include <condition_variable>
+std::condition_variable cond_var;
+
 #include <Eigen/Dense>
 
 #define US_CYCLES 1000 //[us]
@@ -64,6 +88,7 @@
 #define PACKET_LENGTH_RESET_LED 6
 #define PACKET_LENGTH_PRESSUREVAL 8
 #define PACKET_LENGTH_MATLAB 7
+const int PUB_PERIOD_MS = 10;
 
 #define ADXL345_LSB_G_2G            256.0f
 #define ADXL345_LSB_G_4G            128.0f
@@ -75,6 +100,8 @@ using namespace std;
 using namespace Eigen;
 
 mutex dataMutex;
+bool is_running = true;
+
 
 struct structDataPacketPureData 
 {
@@ -571,6 +598,7 @@ struct structPDShoe
 	unsigned int packetError;
 	unsigned int packetReceived;
 	uint8_t id;
+	bool ready = false;
 };
 
 struct structWrist
@@ -655,9 +683,9 @@ inline bool checkSyncPacket(uint8_t *buffer,int ret)
 
 void threadSYNCreceive(structSync* SyncBoard)
 {
-	dataMutex.lock();
+	std::unique_lock<std::mutex> lk(dataMutex);
 	
-	printf("Hello from Thread! [%s ip: %s - port: %d]\n",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
 
 	//unsigned int nReset=0;
 	uint8_t id;
@@ -682,20 +710,20 @@ void threadSYNCreceive(structSync* SyncBoard)
 	len = (socklen_t)sizeof(addrClient);
 	id=SyncBoard->id;
 	
-	dataMutex.unlock();
+	lk.unlock();
 	usleep(250);
 	
 	// No blocking mode
 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK); 
 		
-	while(1)
+	while(is_running)
 	{		
-		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_SYNC,0,(struct sockaddr *)&addrClient,&len);
+		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_SYNC,MSG_DONTWAIT,(struct sockaddr *)&addrClient,&len);
 		
 		if (ret>1)
-		{			
-			dataMutex.lock();
+		{
+			std::lock_guard<std::mutex> lk(dataMutex);
 			
 			SyncBoard->packetReceived++;
 			if (checkSyncPacket(recvBuffer,ret))
@@ -710,7 +738,9 @@ void threadSYNCreceive(structSync* SyncBoard)
 			
 			dataMutex.unlock();
 			
-		}	
+		}
+		else
+			this_thread::sleep_for(chrono::milliseconds(1));
 	}
 
 }
@@ -718,9 +748,9 @@ void threadSYNCreceive(structSync* SyncBoard)
 
 void threadUDPreceive(structPDShoe* PDShoe)
 {
-	dataMutex.lock();
+	std::unique_lock<std::mutex> lk(dataMutex);
 	
-	printf("Hello from Thread! [%s ip: %s - port: %d]\n",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
 	
 	uint8_t id;
 	unsigned long int cycles=0;
@@ -745,27 +775,29 @@ void threadUDPreceive(structPDShoe* PDShoe)
 	len = (socklen_t)sizeof(addrClient);
 	
 	id=PDShoe->id;
-	dataMutex.unlock();
+	lk.unlock();
 	usleep(250);
 	
 	// No blocking mode
 	//int opts=fcntl(sockfdServer, F_GETFL, 0);
 	//fcntl(sockfdServer, F_SETFL, opts | O_NONBLOCK); 
 		
-	while(1)
-	{		
-		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_WIFI,0,(struct sockaddr *)&addrClient,&len);
+	while(is_running)
+	{
+		ret=recvfrom(sockfdServer,recvBuffer,PACKET_LENGTH_WIFI,MSG_DONTWAIT,(struct sockaddr *)&addrClient,&len);
 		
 		if (ret>1)
 		{
 			//printf("Data!\n");
 			
-			dataMutex.lock();
-			
+			std::unique_lock<std::mutex> lk(dataMutex);
+			cond_var.wait(lk, [&]{ return !PDShoe->ready; });
+
 			PDShoe->packetReceived++;
 			if (checkPacket(recvBuffer,ret))
 			{
 				memcpy(PDShoe->lastPacket,recvBuffer,PACKET_LENGTH_WIFI);
+				PDShoe->ready = true;
 			}
 			else
 			{
@@ -773,9 +805,12 @@ void threadUDPreceive(structPDShoe* PDShoe)
 				//printf("Ret=%d\n", ret);
 			}
 			
-			dataMutex.unlock();
+			lk.unlock();
+			cond_var.notify_all();
 			
 		}
+		else
+			this_thread::sleep_for(chrono::milliseconds(1));
 		cycles++;
 	}
 }
@@ -1443,8 +1478,32 @@ void createLogPacket_2nodes(uint8_t* buffer_out,uint8_t* buffer_01,uint8_t* buff
 	buffer_out[212]=0x5;
 	buffer_out[213]=0x6;
 }
+
+
 int main(int argc, char* argv[])
-{	
+{
+	// create two publishers
+	ros::init(argc, argv, "sport_sole_publisher");
+	ros::NodeHandle n(std::string("~"));
+	string global_frame_ids[LEFT_RIGHT];
+	for (size_t lr: {LEFT, RIGHT})
+	{
+		n.param<std::string>(string("global_frame_id_") + (lr == LEFT ? "l" : "r"), global_frame_ids[lr], "map");
+	}
+
+	// Publish time offset variations.
+	ros::Publisher pub_l_to_ros = n.advertise<std_msgs::Float32>("l_to_ros", 1);
+	ros::Publisher pub_r_to_ros = n.advertise<std_msgs::Float32>("r_to_ros", 1);
+
+	//publish msg
+	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 1000) ;
+
+	//publisher created here for visualizing shoe's acceleration data and orientation
+	ros::Publisher pub_markers = n.advertise<visualization_msgs::MarkerArray> ("sport_sole_markers", 1);
+
+	// Transform broadcaster
+	tf2_ros::TransformBroadcaster tf_broadcaster;
+
 	printf("\nSportSole v1.9\n\n");
 	printf("2 Nodes: LSole, RSole\n\n");
 	printf("Include RAW Data in Polling Mode\n");
@@ -1501,6 +1560,8 @@ int main(int argc, char* argv[])
 	structDataPacketPureData dataPacketR;
 	//structDataPacketPureDataWrist dataPacketWristR;
 	structSyncPacket SyncPacket;
+
+	GaitPhaseFSM<structDataPacketPureDataRAW> gait_phase_fsms[LEFT_RIGHT];
 	
 	swStat.packetLedSent=0;
 	swStat.packetGuiSent=0;
@@ -1511,12 +1572,70 @@ int main(int argc, char* argv[])
 	swStat.packetErrorSync=0;
 	swStat.packetBroadSent=0;
 	
+
 	struct timeval tv;
 	uint64_t timestamp;
 	uint64_t timestamp_start;
 	uint32_t tCycle;
 	uint64_t cycleMicrosTime=US_CYCLES;
 	uint32_t cycles=0;
+
+
+	// Gravitational acceleration in Hoboken.
+	const double GRAVITATIONAL_ACCELERATION = 9.81772;
+	
+	ros::Time ros_stamp_base;
+	ros::Duration transmission_delay(0.002);
+#if 0
+	ros::Duration l_to_ros_offset(0, 0);
+	ros::Duration r_to_ros_offset(0, 0);
+
+	constexpr double alpha_low_pass = 0.02;
+
+	auto getRosTimestampL = [&]()->ros::Time{
+		if (l_to_ros_offset.isZero()) 
+			l_to_ros_offset = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
+		ros::Duration l_to_ros = ros::Time::now() - ros::Time(dataPacketL.timestamp * 1e-6);
+		std_msgs::Float32 msg; 
+		msg.data = (l_to_ros - l_to_ros_offset).toSec();
+		pub_l_to_ros.publish(msg);
+		l_to_ros_offset = l_to_ros_offset + (l_to_ros - l_to_ros_offset) * alpha_low_pass;
+		return ros::Time(dataPacketL.timestamp * 1e-6) + l_to_ros_offset;
+	};
+
+	auto getRosTimestampR = [&]()->ros::Time{
+		if (r_to_ros_offset.isZero()) 
+			r_to_ros_offset = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
+		ros::Duration r_to_ros = ros::Time::now() - ros::Time(dataPacketR.timestamp * 1e-6);
+		std_msgs::Float32 msg;
+		msg.data = (r_to_ros - r_to_ros_offset).toSec();
+		pub_r_to_ros.publish(msg);
+		r_to_ros_offset = r_to_ros_offset + (r_to_ros - r_to_ros_offset) * alpha_low_pass;
+		return ros::Time(dataPacketR.timestamp * 1e-6) + r_to_ros_offset;
+	};
+#else
+
+	ros::Duration owt_window_size(10.0);
+	Owt<ros::Duration> owt_l(owt_window_size), owt_r(owt_window_size);
+
+	auto getRosTimestampL = [&]()->ros::Time{
+		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
+		auto ts_ros = owt_l(ros::Duration(dataPacketL.timestamp * 1e-6), ros_time_now_since_epoch);
+		std_msgs::Float32 msg; 
+		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
+		pub_l_to_ros.publish(msg);
+		return ros::Time(ts_ros.toSec());
+	};
+
+	auto getRosTimestampR = [&]()->ros::Time{
+		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
+		auto ts_ros = owt_r(ros::Duration(dataPacketR.timestamp * 1e-6), ros_time_now_since_epoch);
+		std_msgs::Float32 msg; 
+		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
+		pub_r_to_ros.publish(msg);
+		return ros::Time(ts_ros.toSec());
+	};
+#endif
 
 	time_t timer;
 	struct tm tstruct;
@@ -1600,6 +1719,7 @@ int main(int argc, char* argv[])
 	addrBroad.sin_addr.s_addr=inet_addr("192.168.1.255");
 	addrBroad.sin_port=htons(3464);
 
+
 	threadPDShoeL=thread(threadUDPreceive,&PDShoeL);
 	threadPDShoeR=thread(threadUDPreceive,&PDShoeR);
 	//threadWristR=thread(threadUDPreceiveWrist, &WristR);
@@ -1607,11 +1727,11 @@ int main(int argc, char* argv[])
 	threadSync=thread(threadSYNCreceive,&Sync);
 	//threadPressureReadVal=thread(threadCheckPressureReadVal,&pressureVal);
 		
-	threadPDShoeL.detach();
-	threadPDShoeR.detach();
+	//threadPDShoeL.detach();
+	//threadPDShoeR.detach();
 	//threadWristR.detach();
 	//threadResetLED.detach();
-	threadSync.detach();
+	//threadSync.detach();
 	//threadPressureReadVal.detach();
 	
 	usleep(1000);
@@ -1655,9 +1775,9 @@ int main(int argc, char* argv[])
 		}
 		//writeGPIO(ledTrigger,GPIOzero,GPIOone);
 	    usleep(75000);
-	  }
+    }
 
-	  RL_FuzzylogicInitialFuzzyTable(RL_FuzzyLogic);
+    RL_FuzzylogicInitialFuzzyTable(RL_FuzzyLogic);
     
 	char *pch;
     char *rlVbTrigger[N_STR]; 
@@ -1704,46 +1824,264 @@ int main(int argc, char* argv[])
 	printf("Waiting...\n");
 	//RAND_MAX is (2^31-1)=2147483647
 	
-	bool cond=false;
-	while(!cond)
+
+
+	if (1)
 	{
-		dataMutex.lock();
-		//cond=(PDShoeL.packetReceived>0) || (PDShoeR.packetReceived>0) || (WristR.packetReceived>0); //&& (PDShoeR.packetReceived>0);
-		cond=(PDShoeL.packetReceived>0) || (PDShoeR.packetReceived>0); //&& (WristR.packetReceived>0); //&& (PDShoeR.packetReceived>0);
-		dataMutex.unlock();
+		// Set to baseline mode
+		currenttime = getMicrosTimeStamp()-timestamp_start;
+		createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+		bufferTime[3] = 3;
+		sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+		ROS_INFO("Enable baseline test sent");
+		this_thread::sleep_for(chrono::milliseconds(200));
+	}
+
+	// Send an enable packet
+	currenttime = getMicrosTimeStamp()-timestamp_start;
+	createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+	bufferTime[3] = 1;
+	sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+	ROS_INFO("Enable packet sent");
+	
+	ROS_INFO("Waiting...");
+	//RAND_MAX is (2^31-1)=2147483647
+	
+	bool cond=false;
+	while(!cond && ros::ok() && !ros::isShuttingDown())
+	{
+		{
+			std::lock_guard<std::mutex> lk(dataMutex);
+			cond = (PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0);
+			if (cond)
+				ros_stamp_base = ros::Time::now() - transmission_delay;
+		}
 		
 		usleep(500);
 	}
 	
-	printf("Start!\n");
+	ROS_INFO("Start!");
 	timestamp_start=getMicrosTimeStamp();
 		
-	while(1)
+	while(ros::ok() && !ros::isShuttingDown())
 	{
-		timestamp=getMicrosTimeStamp();
-		
-		//CODE!
-		dataMutex.lock();
-				
-		reconstructStructPureDataRAW(PDShoeL.lastPacket,dataPacketRawL);
-		reconstructStructPureDataRAW(PDShoeR.lastPacket,dataPacketRawR);
-		// reconstructStructPureDataRAWWrist(WristR.lastPacket, dataPacketRawWristR);
-		reconstructStructSyncPacket(Sync.lastPacket,SyncPacket);
-		
-		swStat.packetErrorPdShoeL=PDShoeL.packetError;
-		swStat.packetErrorPdShoeR=PDShoeR.packetError;
-		// swStat.packetErrorWristR = WristR.packetError;
-		swStat.packetErrorSync=Sync.packetError;
+        // Critical section!
+		{
+			std::unique_lock<std::mutex> lk(dataMutex);
+			cond_var.wait(lk, [&]{ return PDShoeL.ready || PDShoeR.ready; });
+			
+			timestamp=getMicrosTimeStamp();
+			reconstructStructPureDataRAW(PDShoeL.lastPacket,dataPacketRawL);
+			reconstructStructPureDataRAW(PDShoeR.lastPacket,dataPacketRawR);
+			reconstructStructSyncPacket(Sync.lastPacket,SyncPacket);
+			
+			swStat.packetErrorPdShoeL=PDShoeL.packetError;
+			swStat.packetErrorPdShoeR=PDShoeR.packetError;
+			swStat.packetErrorSync=Sync.packetError;
+			swStat.packetReceivedPdShoeL=PDShoeL.packetReceived;
+			swStat.packetReceivedPdShoeR=PDShoeR.packetReceived;
+			swStat.packetReceivedSync=Sync.packetReceived;
 
-		swStat.packetReceivedPdShoeL=PDShoeL.packetReceived;
-		swStat.packetReceivedPdShoeR=PDShoeR.packetReceived;
-		// swStat.packetReceivedWristR = WristR.packetReceived;
-		swStat.packetReceivedSync=Sync.packetReceived;
-		
-		dataMutex.unlock();
+			PDShoeL.ready = false;
+			PDShoeR.ready = false;
+
+			lk.unlock();
+			cond_var.notify_all();
+		}
 		
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
+
+        			
+		sport_sole::SportSole msg;
+		
+		static auto packets_sent = swStat.packetReceivedPdShoeL;
+		//ROS_INFO_STREAM("Time difference: " << (getRosTimestampL() - getRosTimestampR()).nsec);
+		//ROS_INFO_STREAM("Stamp: " << getRosTimestampL());
+		// if (cycles % PUB_PERIOD_MS == 0)
+		if (packets_sent < swStat.packetReceivedPdShoeL)
+		{
+			int new_packets_received = (int)swStat.packetReceivedPdShoeL - (int)packets_sent;
+			ROS_WARN_STREAM_COND(new_packets_received > 1, "Failed to forward " << new_packets_received - 1 << " packets.");
+			packets_sent = swStat.packetReceivedPdShoeL; 
+			ros::Time l_stamp_ros = getRosTimestampL();
+			ros::Time r_stamp_ros = getRosTimestampR();
+			
+			// Define the function to get the quaternion
+			auto assignQuaternion = [](const structDataPacketPureData & data_packet, geometry_msgs::Quaternion & q_msg) {
+				#if 0
+					// Use Euler angles
+					tf::Quaternion q1(tf::Vector3(0, 0, 1), data_packet.yaw1);
+					tf::Quaternion q2(tf::Vector3(0, 1, 0), data_packet.pitch1);
+					tf::Quaternion q3(tf::Vector3(1, 0, 0), data_packet.roll1);
+					tf::Quaternion q = q1 * q3 * q2;
+					tf::quaternionTFToMsg(q, q_msg);
+				#else
+					// User quaternion
+					tf::Quaternion q(-data_packet.qy1, data_packet.qx1, data_packet.qz1, data_packet.qw1);
+					static const tf::Quaternion q2{{1, 0, 0}, M_PI};
+					q = q * q2;
+					q_msg.w = q.w();
+					q_msg.x = q.x();
+					q_msg.y = q.y();
+					q_msg.z = q.z();
+				#endif
+			};
+			
+			// Populate the SportSole message
+			msg.header.stamp = l_stamp_ros;
+			msg.header.frame_id = "odom";
+			msg.raw_acceleration[0].linear.x = -dataPacketL.r_ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[0].linear.y = dataPacketL.r_ax1 * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[0].linear.z = dataPacketL.r_az1 * GRAVITATIONAL_ACCELERATION;
+			msg.angular_velocity[0].x = -dataPacketL.gy1;
+			msg.angular_velocity[0].y = dataPacketL.gx1;
+			msg.angular_velocity[0].z = dataPacketL.gz1;
+			msg.acceleration[0].linear.x = -dataPacketL.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.y = dataPacketL.ax1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[0].linear.z = dataPacketL.az1 * GRAVITATIONAL_ACCELERATION;
+			assignQuaternion(dataPacketL, msg.quaternion[0]);
+			int p_index = 0;
+			msg.pressures[p_index++] = dataPacketL.p1; 
+			msg.pressures[p_index++] = dataPacketL.p2; 
+			msg.pressures[p_index++] = dataPacketL.p3;
+			msg.pressures[p_index++] = dataPacketL.p4;
+			msg.pressures[p_index++] = dataPacketL.p5;
+			msg.pressures[p_index++] = dataPacketL.p6;
+			msg.pressures[p_index++] = dataPacketL.p7;
+			msg.pressures[p_index++] = dataPacketL.p8;
+
+
+			msg.raw_acceleration[1].linear.x = -dataPacketR.r_ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[1].linear.y = dataPacketR.r_ax1 * GRAVITATIONAL_ACCELERATION;
+			msg.raw_acceleration[1].linear.z = dataPacketR.r_az1 * GRAVITATIONAL_ACCELERATION;
+			msg.angular_velocity[1].x = -dataPacketR.gy1;
+			msg.angular_velocity[1].y = dataPacketR.gx1;
+			msg.angular_velocity[1].z = dataPacketR.gz1;
+			msg.acceleration[1].linear.x = -dataPacketR.ay1 * GRAVITATIONAL_ACCELERATION;
+			msg.acceleration[1].linear.y = dataPacketR.ax1 * GRAVITATIONAL_ACCELERATION; 
+			msg.acceleration[1].linear.z = dataPacketR.az1 * GRAVITATIONAL_ACCELERATION;
+			assignQuaternion(dataPacketR, msg.quaternion[1]);
+			msg.pressures[p_index++] = dataPacketR.p1; 
+			msg.pressures[p_index++] = dataPacketR.p2; 
+			msg.pressures[p_index++] = dataPacketR.p3;
+			msg.pressures[p_index++] = dataPacketR.p4;
+			msg.pressures[p_index++] = dataPacketR.p5;
+			msg.pressures[p_index++] = dataPacketR.p6;
+			msg.pressures[p_index++] = dataPacketR.p7;
+			msg.pressures[p_index++] = dataPacketR.p8;
+
+			// TO-DO
+			gait_phase_fsms[LEFT].update(dataPacketRawL);
+			gait_phase_fsms[RIGHT].update(dataPacketRawR);
+			
+			// Ignore the first 4 sec of data because the gravity was not removed yet.
+			if ((l_stamp_ros - ros_stamp_base).toSec() > 4.5)
+			{
+				msg.gait_state = 0;
+				msg.gait_state |= 
+					(gait_phase_fsms[LEFT].getGaitPhase() << 2) |
+					(gait_phase_fsms[RIGHT].getGaitPhase() << 0);
+				pub_sport_sole.publish(msg);
+			}
+			
+			// Construct and publish marker array and tfs for visualization
+			if (pub_markers.getNumSubscribers() > 0)
+			{
+				// Define the message for pub_marker
+				visualization_msgs::MarkerArrayPtr marker_array_ptr(new visualization_msgs::MarkerArray);
+				
+				// Tail of the arrows
+				geometry_msgs:: Point arrow_tails[LEFT_RIGHT];
+				if (global_frame_ids[LEFT].compare(global_frame_ids[RIGHT]) == 0)
+				{
+					arrow_tails[LEFT].y = 0.5;
+					arrow_tails[RIGHT].y = -0.5;
+				}
+
+				// Draw arrows to represent acceleration
+				for (size_t lr: {LEFT, RIGHT})
+				{
+					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
+				
+					marker_ptr->header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
+					marker_ptr->header.frame_id = global_frame_ids[lr];
+					marker_ptr->ns = "~";
+					marker_ptr->id = lr; 
+					marker_ptr->lifetime = ros::Duration(1.0);
+					marker_ptr->type = visualization_msgs::Marker::ARROW;
+					marker_ptr->action = visualization_msgs::Marker::ADD; 
+
+					
+					marker_ptr->points.push_back(arrow_tails[lr]);
+
+					// Head of the arrow
+					geometry_msgs::Point arrow_head;
+					const double arrow_scale_factor = 0.2;
+					arrow_head.x = arrow_tails[lr].x + msg.acceleration[lr].linear.x * arrow_scale_factor;
+					arrow_head.y = arrow_tails[lr].y + msg.acceleration[lr].linear.y * arrow_scale_factor;
+					arrow_head.z = arrow_tails[lr].z + msg.acceleration[lr].linear.z * arrow_scale_factor;
+					marker_ptr->points.push_back(arrow_head); 
+
+					marker_ptr->scale.x = 0.05;
+					marker_ptr->scale.y = 0.1;
+					marker_ptr->scale.z = 0.2;
+					marker_ptr->color.a = 1.0; 
+					marker_ptr->color.r = 1.0;
+					marker_ptr->color.g = 0.0;
+					marker_ptr->color.b = 0.0;
+					marker_array_ptr->markers.push_back(*marker_ptr);
+				}
+
+				// Draw a rectangular prism to represent orientation
+				for (size_t lr: {LEFT, RIGHT})
+				{
+					visualization_msgs::MarkerPtr marker_ptr(new visualization_msgs::Marker);
+					
+					marker_ptr->header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
+					marker_ptr->header.frame_id = global_frame_ids[lr];
+					marker_ptr->lifetime = ros::Duration(0.13);
+					marker_ptr->ns = n.getNamespace();
+					marker_ptr->type = visualization_msgs::Marker::CUBE;
+					marker_ptr->id = lr + 2;
+
+					marker_ptr->pose.position = arrow_tails[lr];
+
+					// 
+					marker_ptr->pose.orientation = msg.quaternion[lr];
+
+					marker_ptr->scale.x = 0.3;
+					marker_ptr->scale.y = 0.1;
+					marker_ptr->scale.z = 0.05;
+
+					marker_ptr->color.a = 1.0;
+					marker_ptr->color.r = 1.0;
+					marker_ptr->color.g = 0.0;
+					marker_ptr->color.b = 1.0;
+					marker_array_ptr->markers.push_back(*marker_ptr);
+				}
+
+				// Publish the markers
+				pub_markers.publish(*marker_array_ptr);
+			
+
+				// Broadcast transforms
+				for (size_t lr: {LEFT, RIGHT})
+				{
+					geometry_msgs::TransformStamped msg_tf; 
+					msg_tf.header.stamp = (lr == LEFT) ? l_stamp_ros : r_stamp_ros;
+					msg_tf.header.frame_id = global_frame_ids[lr];
+					msg_tf.child_frame_id = (lr == LEFT) ? "imu_left" : "imu_right";
+					msg_tf.transform.translation.x = arrow_tails[lr].x;
+					msg_tf.transform.translation.y = arrow_tails[lr].y;
+					msg_tf.transform.translation.z = arrow_tails[lr].z;
+					msg_tf.transform.rotation = msg.quaternion[lr];
+					tf_broadcaster.sendTransform(msg_tf);
+				}
+			}
+
+		}
+
 		// reconstructStructWrist(dataPacketRawWristR, dataPacketWristR);
 		RL_FuzzylogicInitial(RL_FuzzyLogic,dataPacketL,dataPacketR);		
 		if (protocol2==true)
@@ -1832,14 +2170,19 @@ int main(int argc, char* argv[])
 		
 		
 	}
+
+	// Send an reset packet
+	currenttime = getMicrosTimeStamp()-timestamp_start;
+	createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+	bufferTime[3] = 0;
+	sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+	ROS_INFO("Reset packet sent!");
 	
-	//Never here, but..
-	threadPDShoeL.~thread();
-	threadPDShoeR.~thread();	
-	//threadWristR.~thread();
-	//threadResetLED.~thread();
-	threadSync.~thread();
-	//threadPressureReadVal.~thread();
+	is_running = false;
+	
+	threadPDShoeL.join();
+	threadPDShoeR.join();	
+	threadSync.join();
 	return 0; 
 } 
 

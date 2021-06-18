@@ -791,7 +791,8 @@ void threadUDPreceive(structPDShoe* PDShoe)
 			//printf("Data!\n");
 			
 			std::unique_lock<std::mutex> lk(dataMutex);
-			cond_var.wait(lk, [&]{ return !PDShoe->ready; });
+			cond_var.wait_for(lk, std::chrono::milliseconds(500), [&]{ return !PDShoe->ready; });
+			if (PDShoe->ready) continue;
 
 			PDShoe->packetReceived++;
 			if (checkPacket(recvBuffer,ret))
@@ -1878,7 +1879,8 @@ int main(int argc, char* argv[])
         // Critical section!
 		{
 			std::unique_lock<std::mutex> lk(dataMutex);
-			cond_var.wait(lk, [&]{ return PDShoeL.ready || PDShoeR.ready; });
+			cond_var.wait_for(lk, std::chrono::milliseconds(500), [&]{ return PDShoeL.ready || PDShoeR.ready; });
+			if (!PDShoeL.ready && !PDShoeR.ready) continue;
 			
 			timestamp=getMicrosTimeStamp();
 			reconstructStructPureDataRAW(PDShoeL.lastPacket,dataPacketRawL);

@@ -52,3 +52,6 @@ The following configurations assume that you use a TP-Link router.
 1. Immediately after the previous step, send "atid newssid" with carriage return. Teensy should respond with the new SSID "newssid".
 1. Immediately after the previous step, send "atwr" with carriage return to write the change to XBee.
 * Note that timeout may occur if you wait too long after each step.
+
+## debug udp packet
+sudo tcpdump -i enp60s0 -x udp

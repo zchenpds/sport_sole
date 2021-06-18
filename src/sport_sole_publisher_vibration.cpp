@@ -1519,7 +1519,12 @@ int main(int argc, char* argv[])
 	char strFilepath[N_STR];
 
 	// Two CLI parameters are required: session_name, filepath.
-	assert(argc == 3); 
+	assert(argc >= 3); 
+	bool send_enable_packet = false;
+	for (int i = 3; i < argc; ++i) {
+		if (strcmp(argv[i], "-s")==0)
+			send_enable_packet = true;
+	}
 
 	{
 		// Simple functioning
@@ -1575,6 +1580,7 @@ int main(int argc, char* argv[])
 
 	struct timeval tv;
 	uint64_t timestamp;
+	uint64_t timestamp_last_pulse = 0;
 	uint64_t timestamp_start;
 	uint32_t tCycle;
 	uint64_t cycleMicrosTime=US_CYCLES;
@@ -1826,7 +1832,7 @@ int main(int argc, char* argv[])
 	
 
 
-	if (1)
+	if (send_enable_packet)
 	{
 		// Set to baseline mode
 		currenttime = getMicrosTimeStamp()-timestamp_start;
@@ -1835,15 +1841,16 @@ int main(int argc, char* argv[])
 		sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
 		ROS_INFO("Enable baseline test sent");
 		this_thread::sleep_for(chrono::milliseconds(200));
+	
+
+		// Send an enable packet
+		currenttime = getMicrosTimeStamp()-timestamp_start;
+		createTimePacket(bufferTime,currenttime,Odroid_Trigger);
+		bufferTime[3] = 1;
+		sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
+		ROS_INFO("Enable packet sent");
 	}
 
-	// Send an enable packet
-	currenttime = getMicrosTimeStamp()-timestamp_start;
-	createTimePacket(bufferTime,currenttime,Odroid_Trigger);
-	bufferTime[3] = 1;
-	sendto(sockfdBroad,bufferTime,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
-	ROS_INFO("Enable packet sent");
-	
 	ROS_INFO("Waiting...");
 	//RAND_MAX is (2^31-1)=2147483647
 	
@@ -1852,7 +1859,10 @@ int main(int argc, char* argv[])
 	{
 		{
 			std::lock_guard<std::mutex> lk(dataMutex);
+			// Require both shoes
 			cond = (PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0);
+			// Require either shoe
+			// cond = (PDShoeL.packetReceived>0) || (PDShoeR.packetReceived>0);
 			if (cond)
 				ros_stamp_base = ros::Time::now() - transmission_delay;
 		}
@@ -2106,8 +2116,11 @@ int main(int argc, char* argv[])
 			sendto(sockfdGui,bufferLog,sizeof(bufferLog),0,(struct sockaddr *)&addrGui,sizeof(addrGui));
 			swStat.packetGuiSent++;
 		}
+
+		auto time_elapsed_since_last_pulse = timestamp - timestamp_last_pulse;
+		bool next_pulse = time_elapsed_since_last_pulse >= 1e6;
 		
-		if ((cycles%1000)==0)
+		if (next_pulse)
 		{
 			if(Odroid_Trigger>0)
 			{
@@ -2148,12 +2161,34 @@ int main(int argc, char* argv[])
 		// 	//writeGPIO(ledTrigger, GPIOzero, GPIOone);
 		}
 		
-		if((cycles%1000)==0)
+		if(next_pulse)
 		{
-
+			if (time_elapsed_since_last_pulse > 1.5e6) 
+				timestamp_last_pulse = timestamp;
+			else
+				timestamp_last_pulse += 1e6;
 			float currenttime_float_sec = ((float)(currenttime))/1000000.0f;
 			// printf("Cycles=%d - Err(L)=%d - Err(R)=%d - P(L)=%d - P(R)=%d - Tr=%d - ESync=%d\n", cycles, swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, Odroid_Trigger, SyncPacket.Ext_Trigger);
-			printf("cycles=%d err(R)=%d p(R)=%d, t=%5.2f, v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f\n",cycles,swStat.packetErrorPdShoeR,swStat.packetReceivedPdShoeR,currenttime_float_sec,dataPacketR.SV,RL_FuzzyLogic.Vg,RL_FuzzyLogic.Vt,dataPacketR.AFOc,dataPacketR.AFO_omega,dataPacketR.Delta_theta_d);
+			
+			unsigned int packets_received[2] = {swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR};
+			static unsigned int packets_received_last[2];
+			float freqs[2];
+			for (int lr: {0, 1}){
+				freqs[lr] = (packets_received[lr] - packets_received_last[lr]) / (1e-6 * time_elapsed_since_last_pulse);
+				packets_received_last[lr] = packets_received[lr];
+			}
+
+			
+			printf("[%6d, %6.1f s, L: %3.1f Hz, R: %3.1f Hz] ", cycles, currenttime_float_sec, freqs[0], freqs[1]);
+			printf("err(R)=%d p(R)=%d, v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f\n", 
+				swStat.packetErrorPdShoeR,
+				swStat.packetReceivedPdShoeR,
+				dataPacketR.SV,
+				RL_FuzzyLogic.Vg,
+				RL_FuzzyLogic.Vt,
+				dataPacketR.AFOc,
+				dataPacketR.AFO_omega,
+				dataPacketR.Delta_theta_d);
 
 	    }
 		
@@ -2165,7 +2200,7 @@ int main(int argc, char* argv[])
 		//printf("t cycle=%d\n",(uint16_t)tCycle);
 		
 #define US_SLEEP_CORRECTION 0 //48
-		if(!(tCycle>cycleMicrosTime-US_SLEEP_CORRECTION)) usleep(cycleMicrosTime-US_SLEEP_CORRECTION-tCycle);
+		// if(!(tCycle>cycleMicrosTime-US_SLEEP_CORRECTION)) usleep(cycleMicrosTime-US_SLEEP_CORRECTION-tCycle);
 		//else printf("*\n");
 		
 		

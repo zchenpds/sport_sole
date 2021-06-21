@@ -1018,142 +1018,6 @@ struct structRL_FuzzyLogic
 	}
 }RL_FuzzyLogic;
 
-void RL_FuzzylogicInitialFuzzyTable(structRL_FuzzyLogic & RL_FuzzyLogic)
-{			
-	// unit [cm/s]
-	RL_FuzzyLogic.fuzzy_table2(0,0)=-40;
-	RL_FuzzyLogic.fuzzy_table2(0,1)=-30;
-	RL_FuzzyLogic.fuzzy_table2(0,2)=-20;
-	RL_FuzzyLogic.fuzzy_table2(0,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(0,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(0,5)=-10;
-	RL_FuzzyLogic.fuzzy_table2(0,6)=-10;
-	RL_FuzzyLogic.fuzzy_table2(0,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(0,8)=20;
-	RL_FuzzyLogic.fuzzy_table2(0,9)=30;
-	RL_FuzzyLogic.fuzzy_table2(0,10)=40;	
-	
-	RL_FuzzyLogic.fuzzy_table2(1,0)=-35;
-	RL_FuzzyLogic.fuzzy_table2(1,1)=-25;
-	RL_FuzzyLogic.fuzzy_table2(1,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(1,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(1,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(1,5)=-10;
-	RL_FuzzyLogic.fuzzy_table2(1,6)=-10;
-	RL_FuzzyLogic.fuzzy_table2(1,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(1,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(1,9)=25;
-	RL_FuzzyLogic.fuzzy_table2(1,10)=35;	
-		
-	RL_FuzzyLogic.fuzzy_table2(2,0)=-30;
-	RL_FuzzyLogic.fuzzy_table2(2,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(2,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(2,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(2,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(2,5)=-10;
-	RL_FuzzyLogic.fuzzy_table2(2,6)=-10;
-	RL_FuzzyLogic.fuzzy_table2(2,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(2,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(2,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(2,10)=30;
-	
-	RL_FuzzyLogic.fuzzy_table2(3,0)=-25;
-	RL_FuzzyLogic.fuzzy_table2(3,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(3,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(3,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(3,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(3,5)=-10;
-	RL_FuzzyLogic.fuzzy_table2(3,6)=-10;
-	RL_FuzzyLogic.fuzzy_table2(3,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(3,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(3,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(3,10)=25;
-	
-	RL_FuzzyLogic.fuzzy_table2(4,0)=-25;
-	RL_FuzzyLogic.fuzzy_table2(4,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(4,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(4,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(4,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(4,5)=-10;
-	RL_FuzzyLogic.fuzzy_table2(4,6)=-10;
-	RL_FuzzyLogic.fuzzy_table2(4,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(4,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(4,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(4,10)=25;	
-	
-	RL_FuzzyLogic.fuzzy_table2(5,0)=-30;
-	RL_FuzzyLogic.fuzzy_table2(5,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(5,2)=-10;
-	RL_FuzzyLogic.fuzzy_table2(5,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(5,4)=-10;
-	RL_FuzzyLogic.fuzzy_table2(5,5)=0;
-	RL_FuzzyLogic.fuzzy_table2(5,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(5,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(5,8)=10;
-	RL_FuzzyLogic.fuzzy_table2(5,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(5,10)=30;	
-	
-	RL_FuzzyLogic.fuzzy_table2(6,0)=-25;
-	RL_FuzzyLogic.fuzzy_table2(6,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(6,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(6,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(6,4)=10;
-	RL_FuzzyLogic.fuzzy_table2(6,5)=10;
-	RL_FuzzyLogic.fuzzy_table2(6,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(6,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(6,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(6,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(6,10)=25;	
-	
-	RL_FuzzyLogic.fuzzy_table2(7,0)=-25;
-	RL_FuzzyLogic.fuzzy_table2(7,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(7,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(7,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(7,4)=10;
-	RL_FuzzyLogic.fuzzy_table2(7,5)=10;
-	RL_FuzzyLogic.fuzzy_table2(7,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(7,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(7,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(7,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(7,10)=25;
-	
-	RL_FuzzyLogic.fuzzy_table2(8,0)=-30;
-	RL_FuzzyLogic.fuzzy_table2(8,1)=-20;
-	RL_FuzzyLogic.fuzzy_table2(8,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(8,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(8,4)=10;
-	RL_FuzzyLogic.fuzzy_table2(8,5)=10;
-	RL_FuzzyLogic.fuzzy_table2(8,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(8,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(8,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(8,9)=20;
-	RL_FuzzyLogic.fuzzy_table2(8,10)=30;	
-	
-	RL_FuzzyLogic.fuzzy_table2(9,0)=-35;
-	RL_FuzzyLogic.fuzzy_table2(9,1)=-25;
-	RL_FuzzyLogic.fuzzy_table2(9,2)=-15;
-	RL_FuzzyLogic.fuzzy_table2(9,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(9,4)=10;
-	RL_FuzzyLogic.fuzzy_table2(9,5)=10;
-	RL_FuzzyLogic.fuzzy_table2(9,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(9,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(9,8)=15;
-	RL_FuzzyLogic.fuzzy_table2(9,9)=25;
-	RL_FuzzyLogic.fuzzy_table2(9,10)=35;	
-	
-	RL_FuzzyLogic.fuzzy_table2(10,0)=-40;
-	RL_FuzzyLogic.fuzzy_table2(10,1)=-30;
-	RL_FuzzyLogic.fuzzy_table2(10,2)=-20;
-	RL_FuzzyLogic.fuzzy_table2(10,3)=-10;
-	RL_FuzzyLogic.fuzzy_table2(10,4)=10;
-	RL_FuzzyLogic.fuzzy_table2(10,5)=10;
-	RL_FuzzyLogic.fuzzy_table2(10,6)=10;
-	RL_FuzzyLogic.fuzzy_table2(10,7)=10;
-	RL_FuzzyLogic.fuzzy_table2(10,8)=20;
-	RL_FuzzyLogic.fuzzy_table2(10,9)=30;
-	RL_FuzzyLogic.fuzzy_table2(10,10)=40;													
-}
-
 
 
 
@@ -1522,9 +1386,12 @@ int main(int argc, char* argv[])
 	// Two CLI parameters are required: session_name, filepath.
 	assert(argc >= 3); 
 	bool send_enable_packet = false;
+	bool require_both_shoes = true;
 	for (int i = 3; i < argc; ++i) {
 		if (strcmp(argv[i], "-s")==0)
 			send_enable_packet = true;
+		if (strcmp(argv[i], "-e")==0)
+			require_both_shoes = false;
 	}
 
 	{
@@ -1784,8 +1651,6 @@ int main(int argc, char* argv[])
 	    usleep(75000);
     }
 
-    RL_FuzzylogicInitialFuzzyTable(RL_FuzzyLogic);
-    
 	char *pch;
     char *rlVbTrigger[N_STR]; 
 	
@@ -1861,9 +1726,10 @@ int main(int argc, char* argv[])
 		{
 			std::lock_guard<std::mutex> lk(dataMutex);
 			// Require both shoes
-			cond = (PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0);
-			// Require either shoe
-			// cond = (PDShoeL.packetReceived>0) || (PDShoeR.packetReceived>0);
+			if (require_both_shoes)
+				cond = (PDShoeL.packetReceived>0) && (PDShoeR.packetReceived>0);
+			else
+				cond = (PDShoeL.packetReceived>0) || (PDShoeR.packetReceived>0);
 			if (cond)
 				ros_stamp_base = ros::Time::now() - transmission_delay;
 		}

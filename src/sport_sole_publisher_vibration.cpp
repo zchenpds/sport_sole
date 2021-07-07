@@ -976,7 +976,7 @@ struct structRL_FuzzyLogic
 		t[0]      =0;
 		t1        =20;
 		t2        =40;
-		t3        =100;
+		t3        =60;
 		coef_Vg   =1.0;//1.15;
 		coef_Vt   =1.5;
 		lc        =4;
@@ -1964,7 +1964,7 @@ int main(int argc, char* argv[])
 		RL_FuzzylogicInitial(RL_FuzzyLogic,dataPacketL,dataPacketR);		
 		if (protocol2==true)
 		{
-            updateVt(RL_FuzzyLogic,maxV,dV,dataPacketR.timestamp/1e6,timeVaryingVt);
+            RL_FuzzyLogic.Vt= RL_FuzzyLogic.Vb;
 		}
 		if (RL_flag==false)
 		{
@@ -2048,12 +2048,13 @@ int main(int argc, char* argv[])
 
 			
 			printf("[%6d, %6.1f s, L: %3.1f Hz, R: %3.1f Hz] ", cycles, currenttime_float_sec, freqs[0], freqs[1]);
-			printf("err(R)=%d p(R)=%d, v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f\n", 
+			printf("err(R)=%d p(R)=%d, v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, Vh_new=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f\n", 
 				swStat.packetErrorPdShoeR,
 				swStat.packetReceivedPdShoeR,
 				dataPacketR.SV,
 				RL_FuzzyLogic.Vg,
 				RL_FuzzyLogic.Vt,
+				RL_FuzzyLogic.Vh_new,
 				dataPacketR.AFOc,
 				dataPacketR.AFO_omega,
 				dataPacketR.Delta_theta_d);

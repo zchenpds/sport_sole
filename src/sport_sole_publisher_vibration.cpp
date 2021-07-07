@@ -685,7 +685,7 @@ void threadSYNCreceive(structSync* SyncBoard)
 {
 	std::unique_lock<std::mutex> lk(dataMutex);
 	
-	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d, 0x%04x]",SyncBoard->name.c_str(),SyncBoard->ipAddress.c_str(),SyncBoard->port, SyncBoard->port);
 
 	//unsigned int nReset=0;
 	uint8_t id;
@@ -736,8 +736,6 @@ void threadSYNCreceive(structSync* SyncBoard)
 				//printf("Ret=%d\n", ret);
 			}
 			
-			dataMutex.unlock();
-			
 		}
 		else
 			this_thread::sleep_for(chrono::milliseconds(1));
@@ -750,7 +748,7 @@ void threadUDPreceive(structPDShoe* PDShoe)
 {
 	std::unique_lock<std::mutex> lk(dataMutex);
 	
-	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d]",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port);
+	ROS_INFO("Hello from Thread! [%s ip: %s - port: %d, 0x%04x]",PDShoe->name.c_str(),PDShoe->ipAddress.c_str(),PDShoe->port, PDShoe->port);
 	
 	uint8_t id;
 	unsigned long int cycles=0;
@@ -1779,7 +1777,7 @@ int main(int argc, char* argv[])
 		// if (cycles % PUB_PERIOD_MS == 0)
 		if (packets_sent < swStat.packetReceivedPdShoeL)
 		{
-			int new_packets_received = (int)swStat.packetReceivedPdShoeL - (int)packets_sent;
+			int new_packets_received = (int)swStat.packetReceivedPdShoeL - (int)swStat.packetErrorPdShoeL - (int)packets_sent;
 			ROS_WARN_STREAM_COND(new_packets_received > 1, "Failed to forward " << new_packets_received - 1 << " packets.");
 			packets_sent = swStat.packetReceivedPdShoeL; 
 			ros::Time l_stamp_ros = getRosTimestampL();
@@ -2047,10 +2045,11 @@ int main(int argc, char* argv[])
 			}
 
 			
-			printf("[%6d, %6.1f s, L: %3.1f Hz, R: %3.1f Hz] ", cycles, currenttime_float_sec, freqs[0], freqs[1]);
-			printf("err(R)=%d p(R)=%d, v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, Vh_new=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f\n", 
-				swStat.packetErrorPdShoeR,
-				swStat.packetReceivedPdShoeR,
+			printf("[%6d, %5.1f s, [%5.1f,%5.1f] Hz, ", cycles, currenttime_float_sec, freqs[0], freqs[1]);
+			printf("err=[%2d,%2d,%2d] p=[%5d,%5d,%5d] ",
+				swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetErrorSync,
+				swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, swStat.packetReceivedSync);
+			printf("v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, Vh_new=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f, ", 
 				dataPacketR.SV,
 				RL_FuzzyLogic.Vg,
 				RL_FuzzyLogic.Vt,
@@ -2058,6 +2057,7 @@ int main(int argc, char* argv[])
 				dataPacketR.AFOc,
 				dataPacketR.AFO_omega,
 				dataPacketR.Delta_theta_d);
+			printf("ESync=%d\n", SyncPacket.Ext_Trigger);
 
 	    }
 		

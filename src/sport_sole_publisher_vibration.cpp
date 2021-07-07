@@ -2036,19 +2036,19 @@ int main(int argc, char* argv[])
 			float currenttime_float_sec = ((float)(currenttime))/1000000.0f;
 			// printf("Cycles=%d - Err(L)=%d - Err(R)=%d - P(L)=%d - P(R)=%d - Tr=%d - ESync=%d\n", cycles, swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, Odroid_Trigger, SyncPacket.Ext_Trigger);
 			
-			unsigned int packets_received[2] = {swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR};
-			static unsigned int packets_received_last[2];
-			float freqs[2];
-			for (int lr: {0, 1}){
-				freqs[lr] = (packets_received[lr] - packets_received_last[lr]) / (1e-6 * time_elapsed_since_last_pulse);
-				packets_received_last[lr] = packets_received[lr];
+			unsigned int packets_received[] = {swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, swStat.packetReceivedSync};
+			constexpr int LEN_FREQS = sizeof(packets_received) / sizeof(packets_received[0]);
+			static unsigned int packets_received_last[LEN_FREQS];
+			float freqs[LEN_FREQS];
+			for (int i = 0; i < LEN_FREQS; ++i) {
+				freqs[i] = (packets_received[i] - packets_received_last[i]) / (1e-6 * time_elapsed_since_last_pulse);
+				packets_received_last[i] = packets_received[i];
 			}
 
 			
-			printf("[%6d, %5.1f s, [%5.1f,%5.1f] Hz, ", cycles, currenttime_float_sec, freqs[0], freqs[1]);
-			printf("err=[%2d,%2d,%2d] p=[%5d,%5d,%5d] ",
-				swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetErrorSync,
-				swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, swStat.packetReceivedSync);
+			printf("%6d, %5.1f s, [%5.1f, %5.1f, %5.1f] Hz, ", cycles, currenttime_float_sec, freqs[0], freqs[1], freqs[2]);
+			printf("err=[%2d,%2d,%2d] ", swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetErrorSync);
+			// printf("p=[%5d,%5d,%5d]", swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, swStat.packetReceivedSync);
 			printf("v(R)=%5.2f, Vg=%5.2f, Vt=%5.2f, Vh_new=%5.2f, AFOc1=%5.2f, AFOc2=%5.2f, u=%5.2f, ", 
 				dataPacketR.SV,
 				RL_FuzzyLogic.Vg,

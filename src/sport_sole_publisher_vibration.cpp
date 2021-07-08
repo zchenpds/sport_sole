@@ -43,6 +43,7 @@
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Time.h>
 #include <owt.h>
 
 #include "sport_sole/sport_sole_common.h"
@@ -1737,7 +1738,10 @@ int main(int argc, char* argv[])
 	
 	ROS_INFO("Start!");
 	timestamp_start=getMicrosTimeStamp();
-		
+	
+
+	ros::Time t0_zeno;
+	ros::Publisher pub_t0_zeno = n.advertise<std_msgs::Time>("t0_zeno", 1);
 	while(ros::ok() && !ros::isShuttingDown())
 	{
         // Critical section!
@@ -1764,7 +1768,9 @@ int main(int argc, char* argv[])
 			lk.unlock();
 			cond_var.notify_all();
 		}
-		
+
+		if (t0_zeno.isZero() && SyncPacket.Ext_Trigger) t0_zeno = ros::Time::now();
+
 		reconstructStruct(dataPacketRawL,dataPacketL);
 		reconstructStruct(dataPacketRawR,dataPacketR);
 
@@ -2045,7 +2051,12 @@ int main(int argc, char* argv[])
 				packets_received_last[i] = packets_received[i];
 			}
 
-			
+			// Publish zeno start timestamp
+			std_msgs::Time msg_t0_zeno;
+			msg_t0_zeno.data = t0_zeno;
+			pub_t0_zeno.publish(msg_t0_zeno);
+
+			// print stdout logs
 			printf("%6d, %5.1f s, [%5.1f, %5.1f, %5.1f] Hz, ", cycles, currenttime_float_sec, freqs[0], freqs[1], freqs[2]);
 			printf("err=[%2d,%2d,%2d] ", swStat.packetErrorPdShoeL, swStat.packetErrorPdShoeR, swStat.packetErrorSync);
 			// printf("p=[%5d,%5d,%5d]", swStat.packetReceivedPdShoeL, swStat.packetReceivedPdShoeR, swStat.packetReceivedSync);

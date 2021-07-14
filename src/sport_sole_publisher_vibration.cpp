@@ -1511,6 +1511,16 @@ int main(int argc, char* argv[])
 
 	time_t timer;
 	struct tm tstruct;
+	timer=time(0);
+	tstruct = *localtime(&timer);
+	strftime(strDate, sizeof(strDate), "%Y-%m-%d_%H-%M-%S", &tstruct);
+	sprintf(strFile,"%s/%s_%s.dat", strFilepath, strDate,strSession);
+	FILE * pFile;
+	pFile = fopen (strFile, "wb");
+	if (!pFile) {
+		ROS_ERROR_STREAM("Cannot open file: " << strFile);
+		return 1;
+	}
 	
 	int sockfdPd;
 	int sockfdGui;
@@ -1619,13 +1629,6 @@ int main(int argc, char* argv[])
 	uint nPacketLed=0;
 	uint64_t currenttime=0;
 	
-	timer=time(0);
-	tstruct = *localtime(&timer);
-	strftime(strDate, sizeof(strDate), "%Y-%m-%d_%H-%M-%S", &tstruct);
-	sprintf(strFile,"%s/%s_%s.dat", strFilepath, strDate,strSession);
-	FILE * pFile;
-	pFile = fopen (strFile, "wb");
-
 		
 #define CYCLES_WRITE 500
 	

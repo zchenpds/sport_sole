@@ -1653,10 +1653,10 @@ int main(int argc, char* argv[])
 	    usleep(75000);
     }
 
-	char *pch;
-    char *rlVbTrigger[N_STR]; 
-	
-	pch = strtok(strSession,"_");
+	// Legacy code that tends to crash upon nonconforming user input
+	char *pch = strtok(strSession,"_");
+    char *rlVbTrigger[N_STR];
+
 	uint8_t RL_Vb=0;
 	
 	while(pch != NULL)
@@ -1666,6 +1666,7 @@ int main(int argc, char* argv[])
 		RL_Vb++;
 	}
 
+	if (RL_Vb < 3) ROS_ERROR("Session name must contain at least 3 parts separated by underscore '_'.");
     bool RL_flag;
 	bool protocol2=false;
 	bool constantTraining=false;
@@ -1683,6 +1684,7 @@ int main(int argc, char* argv[])
 	}
 	if (atof(rlVbTrigger[1])==4)
 	{
+		if (RL_Vb < 4) ROS_ERROR("For mode 4, session name must contain at least 4 parts separated by underscore '_'.");
 		RL_flag=false;
 		printf("RL + FuzzyLogic is off! \n");
 		printf("Constant training speed! \n");

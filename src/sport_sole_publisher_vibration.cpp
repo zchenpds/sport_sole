@@ -1356,8 +1356,10 @@ int main(int argc, char* argv[])
 	}
 
 	// Publish time offset variations.
-	ros::Publisher pub_l_to_ros = n.advertise<std_msgs::Float32>("l_to_ros", 1);
-	ros::Publisher pub_r_to_ros = n.advertise<std_msgs::Float32>("r_to_ros", 1);
+	ros::Publisher pub_owt[LEFT_RIGHT] = {
+		n.advertise<sport_sole::OWT>("owt_l", 100),
+		n.advertise<sport_sole::OWT>("owt_r", 100)
+	};
 
 	//publish msg
 	ros::Publisher pub_sport_sole = n.advertise<sport_sole::SportSole> ("sport_sole", 1000) ;
@@ -1494,18 +1496,24 @@ int main(int argc, char* argv[])
 	auto getRosTimestampL = [&]()->ros::Time{
 		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
 		auto ts_ros = owt_l(ros::Duration(dataPacketL.timestamp * 1e-6), ros_time_now_since_epoch);
-		std_msgs::Float32 msg; 
-		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
-		pub_l_to_ros.publish(msg);
+		sport_sole::OWT msg; 
+		msg.device_stamp = ros::Duration(dataPacketL.timestamp * 1e-6);
+		msg.host_stamp = ros_time_now_since_epoch;
+		msg.measured_delay = ros_time_now_since_epoch - ros::Duration(dataPacketL.timestamp * 1e-6);
+		msg.offset = owt_l.getOffset();
+		pub_owt[LEFT].publish(msg);
 		return ros::Time(ts_ros.toSec());
 	};
 
 	auto getRosTimestampR = [&]()->ros::Time{
 		ros::Duration ros_time_now_since_epoch(ros::Time::now().toSec());
 		auto ts_ros = owt_r(ros::Duration(dataPacketR.timestamp * 1e-6), ros_time_now_since_epoch);
-		std_msgs::Float32 msg; 
-		msg.data = (ts_ros - ros_time_now_since_epoch).toSec();
-		pub_r_to_ros.publish(msg);
+		sport_sole::OWT msg; 
+		msg.device_stamp = ros::Duration(dataPacketR.timestamp * 1e-6);
+		msg.host_stamp = ros_time_now_since_epoch;
+		msg.measured_delay = ros_time_now_since_epoch - ros::Duration(dataPacketR.timestamp * 1e-6);
+		msg.offset = owt_r.getOffset();
+		pub_owt[RIGHT].publish(msg);
 		return ros::Time(ts_ros.toSec());
 	};
 #endif

@@ -52,6 +52,10 @@ public:
     
     return pts + offset;
   }
+  
+  inline DurationType getOffset() const {
+    return getOffset(deq_.front());
+  }
 };
 
 #endif // OWT_H

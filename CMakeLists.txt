@@ -100,6 +100,7 @@ add_message_files(
    FILES
    SportSole.msg
    GaitState.msg
+   OWT.msg
 )
 
 ## Generate services in the 'srv' folder

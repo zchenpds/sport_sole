@@ -1,0 +1,4 @@
+duration device_stamp
+duration host_stamp
+duration measured_delay
+duration offset

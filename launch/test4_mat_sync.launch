@@ -1,0 +1,11 @@
+<launch>
+    <arg name="record_enabled" value="true" />
+    <node pkg="sport_sole" type="sport_sole_publisher_vibration" 
+          name="sport_sole_publisher" output="screen" args="sbj001_0_1.0 $(env HOME)/log -s" />
+    <node pkg="rosbag" type="record" name="sport_sole_bag_record"
+          args="record -o $(find sport_sole)/bags/test4_mat_sync
+                /sport_sole_publisher/sport_sole
+                /sport_sole_publisher/t0_zeno
+                /tf /tf_static
+                /joint_states" />
+</launch>

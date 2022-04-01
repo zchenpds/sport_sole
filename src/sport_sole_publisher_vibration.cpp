@@ -32,6 +32,7 @@
 #include <ros/ros.h>
 #include <ros/time.h>
 #include "sport_sole/SportSole.h"
+#include "sport_sole/OWT.h"
 #include <tf/LinearMath/Quaternion.h>
 #include <tf/LinearMath/Vector3.h>
 #include <tf/transform_datatypes.h>
@@ -1996,7 +1997,7 @@ int main(int argc, char* argv[])
 			createGuidedSpeedPacket(bufferGuidedSpeed,RL_FuzzyLogic.Vg);
 			sendto(sockfdBroad,bufferGuidedSpeed,PACKET_LENGTH_TIME,0,(struct sockaddr *)&addrBroad,sizeof(addrBroad));
 		}
-		if ((cycles%70)==0)
+		if ((cycles%100)==0)
 		{
 			sendto(sockfdGui,bufferLog,sizeof(bufferLog),0,(struct sockaddr *)&addrGui,sizeof(addrGui));
 			swStat.packetGuiSent++;

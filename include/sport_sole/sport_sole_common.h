@@ -50,7 +50,8 @@ namespace sport_sole {
     return s == GaitPhase::Stance1 || s == GaitPhase::Stance2;
   }
 
-  const double p_threshold = 100.0;
+  constexpr double P_THRESHOLD = 100.0;
+  double p_threshold = P_THRESHOLD;
 
   // Gait Phase Finite State Machine
   template <typename structDataPacketPureDataRAW>
@@ -99,7 +100,7 @@ namespace sport_sole {
     double p_threshold_;
     
   public:
-    GaitPhaseFSM2(double p_threshold = 100.0): 
+    GaitPhaseFSM2(double p_threshold = P_THRESHOLD): 
       gait_phases_{GaitPhase::Stance2, GaitPhase::Stance2},
       p_threshold_(p_threshold)
     {}
@@ -116,15 +117,15 @@ namespace sport_sole {
         auto & gait_phase = gait_phases_[lr];
         switch (gait_phase) {
           case GaitPhase::Swing:
-            if (p_hind_sum > p_threshold_) 
+            if (p_hind_sum > p_threshold_)
               gait_phase = GaitPhase::Stance1;
             break;
           case GaitPhase::Stance1:
-            if (p_fore_sum > p_threshold_) 
+            if (p_fore_sum > p_threshold_)
               gait_phase = GaitPhase::Stance2;
             break;
           case GaitPhase::Stance2:
-            if (p_hind_sum <= p_threshold_) 
+            if (p_hind_sum <= p_threshold_ && fabs(msg.angular_velocity[lr].y) > 1.0)
               gait_phase = GaitPhase::Stance3;
             break;
           case GaitPhase::Stance3:

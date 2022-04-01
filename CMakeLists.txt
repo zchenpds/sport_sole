@@ -61,6 +61,7 @@ add_library(${PROJECT_NAME} ${SOURCE_FILES})
 ## "librviz_plugin_tutorials.so", or whatever is appropriate for your
 ## particular OS.
 target_link_libraries(${PROJECT_NAME} Qt5::Widgets ${QT_LIBRARIES} ${OGRE_LIBRARIES})
+add_dependencies(${PROJECT_NAME} sport_sole_generate_messages_cpp)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
